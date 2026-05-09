@@ -1,0 +1,3225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#05091a">
+<title>HADO 체크인 v6 — 김해 리저널 매치</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<!-- A8: PWA 매니페스트 (인라인 — 별도 파일 호스팅 없이 동작) -->
+<link rel="manifest" href='data:application/manifest+json,{"name":"HADO 체크인","short_name":"HADO","start_url":".","display":"standalone","background_color":"%2305091a","theme_color":"%2305091a","icons":[{"src":"data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%2305091a%22/><text x=%2250%22 y=%2255%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 fill=%22%2300c8ff%22 font-family=%22Orbitron%22 font-weight=%22900%22 font-size=%2228%22>HADO</text></svg>","sizes":"192x192","type":"image/svg+xml"}]}'>
+<!-- A12: Chart.js CDN (현황 탭 차트) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+<style>
+:root {
+  --bg:#05091a; --bg2:#08112a; --bg3:#0d1e3d; --panel:#0d1b30; --panel2:#112040;
+  --border:#1c3a60; --border2:#2a5a90;
+  --accent:#00c8ff; --accent2:#0055ff;
+  --red:#ff3a5c; --red-bg:rgba(255,58,92,.08); --red-bd:rgba(255,58,92,.25);
+  --blue:#1a6fff; --blue-bg:rgba(26,111,255,.08); --blue-bd:rgba(26,111,255,.25);
+  --green:#00e676; --gold:#ffd700; --orange:#ff9800; --purple:#a855f7;
+  --text:#c8d8f0; --text2:#6a90b8; --text3:#334a6a;
+  --gA:#00c8ff; --gWX:#a855f7; --gR:#00e676; --gP:#ff9a3c;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; font-size:14px; min-height:100vh; overflow-x:hidden; }
+body::before { content:''; position:fixed; inset:0; background:radial-gradient(ellipse at 20% 50%,rgba(0,100,200,.06) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(0,200,255,.04) 0%,transparent 50%); pointer-events:none; }
+.mono { font-family:'Orbitron',monospace; }
+.dim { color:var(--text2); }
+.sm { font-size:11px; } .xs { font-size:10px; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+@keyframes spin { to{transform:rotate(360deg)} }
+.fade-in { animation:fadeIn .2s ease; }
+
+.app { position:relative; min-height:100vh; display:flex; flex-direction:column; }
+.header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:linear-gradient(180deg,rgba(0,200,255,.06) 0%,transparent 100%); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; backdrop-filter:blur(12px); gap:12px; }
+.logo { font-family:'Orbitron',monospace; font-size:18px; font-weight:900; color:var(--accent); letter-spacing:3px; line-height:1; }
+.logo-sub { font-size:9px; color:var(--text2); letter-spacing:2px; margin-top:3px; }
+.hdr-center { flex:1; text-align:center; }
+.hdr-title { font-size:13px; font-weight:700; color:var(--text); letter-spacing:.5px; }
+.hdr-meta { font-size:10px; color:var(--text2); margin-top:2px; }
+.hdr-right { display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; }
+
+.sdot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--text3); vertical-align:middle; margin-right:5px; }
+.sdot.ok { background:var(--green); box-shadow:0 0 5px var(--green); }
+.sdot.busy { background:var(--gold); animation:pulse .7s infinite; }
+.sdot.err { background:var(--red); }
+.sdot.warn { background:var(--orange); }
+
+.nav { display:flex; gap:2px; padding:8px 20px; border-bottom:1px solid var(--border); background:var(--bg2); overflow-x:auto; scrollbar-width:none; }
+.nav::-webkit-scrollbar { display:none; }
+.nav-btn { padding:6px 14px; border-radius:6px; border:1px solid transparent; background:transparent; color:var(--text2); cursor:pointer; font-family:'Noto Sans KR',sans-serif; font-size:12px; font-weight:500; transition:all .15s; white-space:nowrap; }
+.nav-btn:hover { color:var(--text); background:rgba(0,200,255,.04); border-color:var(--border); }
+.nav-btn.active { background:rgba(0,200,255,.1); color:var(--accent); border-color:rgba(0,200,255,.3); }
+
+.match-bar { display:flex; gap:5px; padding:8px 20px; align-items:center; background:var(--bg2); border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; }
+.match-bar::-webkit-scrollbar { display:none; }
+.round-sep { font-size:9px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; padding:0 6px; white-space:nowrap; flex-shrink:0; }
+.round-line { width:1px; height:14px; background:var(--border); flex-shrink:0; }
+.mchip { padding:3px 10px; border-radius:12px; border:1px solid var(--border); background:var(--panel); color:var(--text2); font-size:11px; font-weight:600; cursor:pointer; transition:all .12s; white-space:nowrap; flex-shrink:0; }
+.mchip:hover { border-color:var(--border2); color:var(--text); }
+.mchip.active { background:rgba(0,200,255,.12); border-color:var(--accent); color:var(--accent); }
+.mchip.done { background:rgba(0,230,118,.08); border-color:var(--green); color:var(--green); }
+.mchip.dirty { background:rgba(255,152,0,.08); border-color:var(--orange); color:var(--orange); }
+.mchip.pb::after { content:'⚡'; margin-left:3px; color:var(--purple); }
+
+.main { flex:1; padding:16px 20px; max-width:980px; margin:0 auto; width:100%; }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:14px; }
+.card-title { font-family:'Orbitron',monospace; font-size:10px; font-weight:700; letter-spacing:3px; color:var(--accent); margin-bottom:12px; text-transform:uppercase; }
+
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:5px; padding:7px 16px; border-radius:7px; border:none; cursor:pointer; font-family:'Noto Sans KR',sans-serif; font-size:12px; font-weight:600; transition:all .15s; white-space:nowrap; }
+.btn-primary { background:linear-gradient(135deg,var(--accent2),var(--accent)); color:#fff; }
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,200,255,.25); }
+.btn-secondary { background:var(--bg3); color:var(--text); border:1px solid var(--border); }
+.btn-secondary:hover { border-color:var(--border2); }
+.btn-green { background:rgba(0,230,118,.1); color:var(--green); border:1px solid rgba(0,230,118,.3); }
+.btn-green:hover { background:rgba(0,230,118,.2); }
+.btn-danger { background:rgba(255,58,92,.1); color:var(--red); border:1px solid rgba(255,58,92,.3); }
+.btn-orange { background:linear-gradient(135deg,#ff9800,#ff6b00); color:#fff; }
+.btn-orange:hover { box-shadow:0 4px 14px rgba(255,152,0,.35); transform:translateY(-1px); }
+.btn-sm { padding:5px 11px; font-size:11px; }
+.btn:disabled { opacity:.35; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
+.btn-wide { width:100%; }
+
+.grade { display:inline-block; padding:2px 7px; border-radius:4px; font-size:9px; font-weight:700; font-family:'Orbitron',monospace; letter-spacing:.5px; }
+.grade-어드밴스 { background:rgba(0,200,255,.1); color:var(--gA); border:1px solid rgba(0,200,255,.3); }
+.grade-WX { background:rgba(168,85,247,.1); color:var(--gWX); border:1px solid rgba(168,85,247,.3); }
+.grade-루키 { background:rgba(0,230,118,.08); color:var(--gR); border:1px solid rgba(0,230,118,.3); }
+.grade-프리루키 { background:rgba(255,154,60,.08); color:var(--gP); border:1px solid rgba(255,154,60,.3); }
+
+.match-hdr { background:linear-gradient(135deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.mh-left { flex:1; }
+.mh-round { font-size:10px; font-weight:700; letter-spacing:1px; color:var(--text2); margin-bottom:5px; text-transform:uppercase; }
+.mh-vs { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.mh-team { font-size:17px; font-weight:700; }
+.mh-team.red { color:var(--red); } .mh-team.blue { color:var(--blue); }
+.mh-vstext { font-family:'Orbitron',monospace; font-size:12px; color:var(--text3); font-weight:700; }
+.mh-badge { padding:5px 12px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:.5px; flex-shrink:0; }
+.badge-wait { background:rgba(51,74,106,.3); color:var(--text2); border:1px solid var(--text3); }
+.badge-prog { background:rgba(255,152,0,.1); color:var(--orange); border:1px solid var(--orange); }
+.badge-done { background:rgba(0,230,118,.1); color:var(--green); border:1px solid var(--green); }
+.badge-dirty { background:rgba(255,152,0,.1); color:var(--orange); border:1px solid var(--orange); }
+
+.step-bar { display:flex; background:var(--panel); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:12px; }
+.step-item { flex:1; padding:9px 6px; text-align:center; font-size:11px; font-weight:600; color:var(--text3); cursor:pointer; transition:all .15s; border-right:1px solid var(--border); }
+.step-item:last-child { border-right:none; }
+.step-item.active { background:rgba(0,200,255,.08); color:var(--accent); }
+.step-item.done { background:rgba(0,230,118,.06); color:var(--green); }
+.step-num { display:block; font-family:'Orbitron',monospace; font-size:15px; font-weight:700; margin-bottom:1px; }
+
+.pb-alert { background:rgba(168,85,247,.08); border:1px solid rgba(168,85,247,.3); border-radius:9px; padding:12px 15px; margin-bottom:12px; }
+.pb-title { font-family:'Orbitron',monospace; font-size:11px; color:var(--purple); font-weight:700; letter-spacing:2px; margin-bottom:7px; }
+.pb-order { display:flex; gap:5px; flex-wrap:wrap; margin-top:6px; }
+.pb-chip { padding:4px 10px; border-radius:5px; font-size:11px; font-weight:700; }
+.pb-low { background:rgba(0,230,118,.1); color:var(--green); border:1px solid rgba(0,230,118,.3); }
+.pb-high { background:rgba(0,200,255,.1); color:var(--accent); border:1px solid rgba(0,200,255,.3); }
+
+.teams-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+@media(max-width:600px) { .teams-grid { grid-template-columns:1fr; } }
+.team-panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.tphdr { padding:10px 14px; display:flex; align-items:center; justify-content:space-between; }
+.tphdr.red { background:linear-gradient(135deg,var(--red-bg),transparent); border-bottom:1px solid var(--red-bd); }
+.tphdr.blue { background:linear-gradient(135deg,var(--blue-bg),transparent); border-bottom:1px solid var(--blue-bd); }
+.side-tag { font-size:9px; font-weight:700; letter-spacing:1px; padding:2px 6px; border-radius:3px; margin-bottom:3px; display:inline-block; }
+.side-red { background:rgba(255,58,92,.2); color:var(--red); }
+.side-blue { background:rgba(26,111,255,.2); color:var(--blue); }
+.tp-name { font-size:14px; font-weight:700; }
+.tp-cnt { font-size:10px; color:var(--text3); }
+.tp-cnt.ok { color:var(--green); } .tp-cnt.over { color:var(--red); }
+
+.plist { padding:7px; }
+.pitem { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:6px; cursor:pointer; transition:all .1s; margin-bottom:2px; border:1px solid transparent; }
+.pitem:hover { background:rgba(255,255,255,.03); }
+.pitem.sel { border-color:rgba(0,200,255,.25); background:rgba(0,200,255,.06); }
+.pitem.sel.r { border-color:var(--red-bd); background:var(--red-bg); }
+.pitem.sel.b { border-color:var(--blue-bd); background:var(--blue-bg); }
+.pitem.dis { opacity:.3; pointer-events:none; }
+.pchk { width:15px; height:15px; border-radius:3px; border:2px solid var(--border2); background:transparent; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:all .1s; }
+.pitem.sel .pchk { background:var(--accent); border-color:var(--accent); }
+.pitem.sel.r .pchk { background:var(--red); border-color:var(--red); }
+.pitem.sel.b .pchk { background:var(--blue); border-color:var(--blue); }
+.pchk-ico { display:none; color:#fff; font-size:9px; font-weight:700; }
+.pitem.sel .pchk-ico { display:block; }
+.pname { font-size:12px; font-weight:600; flex:1; }
+.pnick { font-size:10px; color:var(--text2); }
+.pno { font-size:10px; color:var(--text3); margin-left:auto; }
+
+.confirm-btn { width:100%; padding:9px; border-radius:6px; border:none; font-size:12px; font-weight:700; cursor:pointer; font-family:'Noto Sans KR',sans-serif; letter-spacing:.5px; transition:all .15s; margin-top:5px; }
+.cbtn-red { background:linear-gradient(135deg,var(--red),#cc2040); color:#fff; }
+.cbtn-blue { background:linear-gradient(135deg,var(--blue),#0f4acc); color:#fff; }
+.confirm-btn:disabled { opacity:.35; cursor:not-allowed; }
+.confirm-btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 3px 10px rgba(0,0,0,.4); }
+
+.char-section { background:var(--panel); border:1px solid var(--border); border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.cs-hdr { padding:10px 15px; border-bottom:1px solid var(--border); background:var(--panel2); display:flex; align-items:center; justify-content:space-between; }
+.cs-title { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--text2); }
+.player-row { padding:12px 15px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:115px 1fr 170px; gap:12px; align-items:start; }
+.player-row:last-child { border-bottom:none; }
+@media(max-width:660px) { .player-row { grid-template-columns:1fr; } }
+.pr-info { display:flex; flex-direction:column; gap:3px; }
+.pr-name { font-size:13px; font-weight:700; }
+.pr-sub { font-size:10px; color:var(--text3); }
+.pr-desc { background:var(--bg3); border:1px solid var(--border); border-radius:5px; padding:6px 8px; font-size:10px; color:var(--text2); line-height:1.6; margin-top:5px; }
+.pr-desc strong { color:var(--accent); }
+
+.char-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:3px; }
+.char-card { background:var(--bg3); border:1px solid var(--border); border-radius:5px; padding:5px 3px; text-align:center; cursor:pointer; transition:all .1s; position:relative; }
+.char-card:hover { border-color:var(--border2); background:var(--panel2); }
+.char-card.sel { background:rgba(0,200,255,.1); border-color:var(--accent); box-shadow:0 0 6px rgba(0,200,255,.2); }
+.char-card.banned { background:rgba(255,58,92,.05); border-color:rgba(255,58,92,.2); opacity:.45; pointer-events:none; }
+.char-card.banned::after { content:'BAN'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; color:var(--red); background:rgba(0,0,0,.45); border-radius:4px; }
+.char-icon { font-size:14px; margin-bottom:1px; }
+.char-name { font-size:8px; color:var(--text2); font-weight:600; line-height:1.2; }
+.char-card.sel .char-name { color:var(--accent); }
+
+.stat-box { background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:8px; }
+.stat-hdr { font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; }
+.stat-total { font-family:'Orbitron',monospace; font-size:12px; font-weight:700; }
+.st-ok { color:var(--green); } .st-over { color:var(--red); } .st-under { color:var(--orange); }
+.stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; }
+.stat-cell { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.stat-lbl { font-size:8px; color:var(--text3); text-transform:uppercase; letter-spacing:1px; }
+.stat-ctl { display:flex; flex-direction:column; align-items:center; gap:1px; }
+.stat-btn { width:20px; height:15px; background:var(--panel2); border:1px solid var(--border2); color:var(--text2); border-radius:3px; cursor:pointer; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; transition:all .1s; line-height:1; }
+.stat-btn:hover { background:var(--accent2); border-color:var(--accent); color:#fff; }
+.stat-val { font-family:'Orbitron',monospace; font-size:19px; font-weight:700; color:var(--accent); min-width:20px; text-align:center; line-height:1; }
+
+.pb-section { background:var(--panel); border:1px solid var(--border); border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.pb-hdr { padding:10px 15px; border-bottom:1px solid var(--border); background:linear-gradient(135deg,rgba(168,85,247,.15),transparent); }
+.pb-hdr-title { font-family:'Orbitron',monospace; font-size:11px; color:var(--purple); font-weight:700; letter-spacing:2px; }
+.pb-turn { padding:12px 15px; border-bottom:1px solid var(--border); display:grid; grid-template-columns:95px 1fr 170px; gap:12px; align-items:start; }
+.pb-turn:last-child { border-bottom:none; }
+@media(max-width:660px) { .pb-turn { grid-template-columns:1fr; } }
+.pt-label { display:flex; flex-direction:column; gap:3px; }
+.pt-num { font-family:'Orbitron',monospace; font-size:22px; font-weight:900; line-height:1; }
+.pt-num.low { color:var(--green); } .pt-num.high { color:var(--accent); }
+.pt-role { font-size:10px; font-weight:700; letter-spacing:.5px; }
+.pt-team { font-size:11px; color:var(--text2); }
+.pb-player-sel { background:var(--bg2); border:1px solid var(--border); color:var(--text); padding:6px 9px; border-radius:5px; font-size:12px; font-family:'Noto Sans KR',sans-serif; width:100%; outline:none; margin-bottom:5px; cursor:pointer; }
+.pb-player-sel:focus { border-color:var(--accent); }
+
+.fin-bar { background:var(--panel2); border:1px solid var(--border2); border-radius:9px; padding:11px 15px; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+.fin-info { font-size:12px; color:var(--text2); line-height:1.6; }
+.fin-actions { display:flex; gap:7px; align-items:center; flex-shrink:0; flex-wrap:wrap; }
+.fin-btn { background:linear-gradient(135deg,#00914a,#005a28); border:1px solid var(--green); color:#fff; padding:8px 16px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; font-family:'Noto Sans KR',sans-serif; letter-spacing:.5px; transition:all .15s; white-space:nowrap; }
+.fin-btn:hover { box-shadow:0 0 12px rgba(0,230,118,.35); transform:translateY(-1px); }
+.fin-btn:disabled { opacity:.35; cursor:not-allowed; transform:none; box-shadow:none; }
+
+.sum-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+@media(max-width:600px) { .sum-grid { grid-template-columns:1fr; } }
+.sum-card { background:var(--panel); border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+.sum-chdr { padding:8px 13px; font-size:11px; font-weight:700; letter-spacing:.5px; display:flex; align-items:center; justify-content:space-between; }
+.sum-chdr.red { background:var(--red-bg); color:var(--red); border-bottom:1px solid var(--red-bd); }
+.sum-chdr.blue { background:var(--blue-bg); color:var(--blue); border-bottom:1px solid var(--blue-bd); }
+.sum-row { display:flex; align-items:center; padding:7px 13px; border-bottom:1px solid rgba(255,255,255,.04); gap:8px; }
+.sum-row:last-child { border-bottom:none; }
+.sum-name { font-size:12px; font-weight:600; flex:1; }
+.sum-char { font-size:11px; color:var(--text2); }
+.sum-stat { font-family:'Orbitron',monospace; font-size:11px; color:var(--accent); font-weight:700; }
+
+.alert { padding:10px 13px; border-radius:8px; margin-bottom:12px; font-size:12px; line-height:1.7; }
+.alert-info { background:rgba(0,200,255,.07); border:1px solid rgba(0,200,255,.2); color:var(--accent); }
+.alert-warn { background:rgba(255,214,0,.07); border:1px solid rgba(255,214,0,.2); color:var(--gold); }
+.alert-ok { background:rgba(0,230,118,.07); border:1px solid rgba(0,230,118,.2); color:var(--green); }
+.alert-err { background:rgba(255,58,92,.07); border:1px solid rgba(255,58,92,.2); color:var(--red); }
+
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:200; opacity:0; pointer-events:none; transition:opacity .2s; }
+.modal-overlay.open { opacity:1; pointer-events:all; }
+.modal { background:var(--panel); border:1px solid var(--border2); border-radius:12px; padding:22px; width:480px; max-width:95vw; max-height:90vh; overflow-y:auto; transform:scale(.96); transition:transform .2s; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+.modal-overlay.open .modal { transform:scale(1); }
+.modal-title { font-family:'Orbitron',monospace; font-size:12px; color:var(--accent); font-weight:700; letter-spacing:2px; margin-bottom:16px; }
+.modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; padding-top:12px; border-top:1px solid var(--border); }
+
+#toast-wrap { position:fixed; bottom:18px; right:18px; display:flex; flex-direction:column; gap:5px; z-index:999; }
+.toast { padding:10px 15px; border-radius:8px; font-size:12px; font-weight:500; display:flex; align-items:center; gap:7px; min-width:200px; animation:fadeIn .2s ease; box-shadow:0 4px 16px rgba(0,0,0,.5); }
+.toast-ok { background:rgba(0,230,118,.12); border:1px solid rgba(0,230,118,.35); color:var(--green); }
+.toast-err { background:rgba(255,58,92,.12); border:1px solid rgba(255,58,92,.35); color:var(--red); }
+.toast-info { background:rgba(0,200,255,.1); border:1px solid rgba(0,200,255,.3); color:var(--accent); }
+
+.divider { height:1px; background:var(--border); margin:12px 0; }
+.flex-row { display:flex; align-items:center; gap:8px; }
+.flex-end { display:flex; justify-content:flex-end; gap:8px; }
+.flex-bet { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+label.lbl { display:block; font-size:10px; color:var(--text2); margin-bottom:4px; font-weight:500; letter-spacing:.5px; }
+input,select,textarea { width:100%; padding:7px 10px; background:var(--bg2); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:'Noto Sans KR',sans-serif; font-size:12px; outline:none; transition:border-color .15s; }
+input:focus,select:focus,textarea:focus { border-color:var(--accent); }
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+
+/* ── A4 검색/필터 ─────────────────────────────── */
+.match-search { padding:6px 10px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:11px; width:140px; margin-right:8px; }
+.match-search::placeholder { color:var(--text3); }
+
+/* ── A5 사전 확정 모달 ──────────────────────────── */
+.pre-finalize { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:12px; margin:10px 0; font-size:11px; }
+.pre-finalize-row { display:flex; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); }
+.pre-finalize-row:last-child { border-bottom:none; }
+.pre-finalize-row strong { min-width:70px; color:var(--accent); }
+
+/* ── A7 색맹 친화 (배경색만으론 구분 어려운 곳에 패턴/아이콘 보강) ─ */
+body.cb-mode .mh-team.red::before { content:'◆ '; }
+body.cb-mode .mh-team.blue::before { content:'■ '; }
+body.cb-mode .mchip.done::after { content:' ✓'; }
+body.cb-mode .mchip.dirty::after { content:' ●'; }
+body.cb-mode .mchip.pb::after { content:' ⚡'; }
+body.cb-mode .grade-어드밴스::before { content:'A'; margin-right:3px; }
+body.cb-mode .grade-루키::before { content:'R'; margin-right:3px; }
+body.cb-mode .grade-프리루키::before { content:'F'; margin-right:3px; }
+body.cb-mode .grade-WX::before { content:'W'; margin-right:3px; }
+body.cb-mode .toast-ok::before { content:'✓ '; }
+body.cb-mode .toast-err::before { content:'✗ '; }
+body.cb-mode .toast-info::before { content:'ⓘ '; }
+
+/* ── A9 공개 읽기 전용 뷰 ──────────────────────── */
+body.view-public .btn-orange,
+body.view-public .btn-primary:not(.public-allowed),
+body.view-public button[onclick*="forceSave"],
+body.view-public button[onclick*="resetCheckin"],
+body.view-public button[onclick*="finalizeCheckin"],
+body.view-public button[onclick*="undoLast"],
+body.view-public button[onclick*="clearAllData"],
+body.view-public button[onclick*="openSettings"],
+body.view-public .stat-btn,
+body.view-public .pb-player-sel,
+body.view-public .step-bar { pointer-events:none; opacity:.5; }
+body.view-public .char-card:not(.sel) { opacity:.35; pointer-events:none; }
+body.view-public input,body.view-public select,body.view-public textarea { pointer-events:none; }
+body.view-public::after { content:'👁 PUBLIC VIEW (read-only)'; position:fixed; bottom:8px; left:8px; background:var(--purple); color:#fff; padding:4px 10px; border-radius:5px; font-size:10px; font-family:'Orbitron',monospace; letter-spacing:1px; z-index:99; }
+
+/* ── A10 OBS 오버레이 (스트리밍용) ──────────────── */
+body.view-overlay { background:transparent !important; }
+body.view-overlay::before { display:none; }
+body.view-overlay .header,body.view-overlay .nav,body.view-overlay .match-bar,body.view-overlay #toast-wrap,body.view-overlay .step-bar,body.view-overlay .fin-bar,body.view-overlay details { display:none !important; }
+.obs-overlay { position:fixed; inset:0; padding:24px; display:flex; flex-direction:column; gap:14px; background:linear-gradient(135deg,rgba(5,9,26,.92),rgba(13,30,61,.92)); color:#fff; }
+.obs-vs { display:flex; justify-content:space-between; align-items:center; padding:14px 26px; background:rgba(0,0,0,.5); border:2px solid var(--accent); border-radius:14px; }
+.obs-team { font-family:'Orbitron',monospace; font-size:32px; font-weight:900; letter-spacing:2px; }
+.obs-team.red { color:var(--red); text-shadow:0 0 18px rgba(255,58,92,.6); }
+.obs-team.blue { color:var(--blue); text-shadow:0 0 18px rgba(26,111,255,.6); }
+.obs-vs-mid { font-family:'Orbitron',monospace; font-size:18px; color:var(--accent); }
+.obs-pick { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; padding:14px; background:rgba(0,0,0,.4); border-radius:10px; }
+.obs-turn { padding:10px; background:var(--panel); border:1px solid var(--border); border-radius:8px; }
+.obs-turn.low { border-color:var(--green); }
+.obs-turn.high { border-color:var(--accent); }
+.obs-turn-num { font-family:'Orbitron',monospace; font-size:16px; font-weight:700; }
+.obs-turn-char { font-size:22px; margin:6px 0; }
+.obs-turn-name { font-size:13px; color:var(--text2); }
+
+/* ── P8 모바일 반응형 ──────────────────────────── */
+@media(max-width:600px) {
+  .header { padding:8px 12px; gap:6px; }
+  .logo { font-size:14px; letter-spacing:2px; }
+  .logo-sub { font-size:8px; }
+  .hdr-title { font-size:11px; }
+  .hdr-meta { font-size:9px; }
+  .hdr-right .btn { padding:5px 8px; font-size:10px; }
+  .hdr-center { display:none; }
+  .nav { padding:6px 10px; }
+  .nav-btn { padding:5px 10px; font-size:11px; }
+  .match-bar { padding:6px 10px; gap:3px; }
+  .mchip { padding:3px 8px; font-size:10px; }
+  .main { padding:10px; }
+  .match-hdr { padding:10px; flex-direction:column; align-items:stretch; }
+  .mh-team { font-size:14px; }
+  .mh-vstext { font-size:10px; }
+  .stat-grid { grid-template-columns:repeat(2,1fr) !important; }
+  .stat-btn { min-width:32px; min-height:32px; font-size:14px; }
+  .char-grid { grid-template-columns:repeat(3,1fr) !important; }
+  .pb-turn { padding:8px !important; }
+  .pb-order { gap:3px; }
+  .pb-chip { padding:3px 7px; font-size:10px; }
+  .modal { padding:14px; width:95vw; }
+  .grid2 { grid-template-columns:1fr; }
+  .obs-team { font-size:22px; }
+  .obs-pick { grid-template-columns:1fr 1fr; }
+}
+@media(max-width:400px) {
+  .char-grid { grid-template-columns:repeat(2,1fr) !important; }
+  .stat-btn { min-width:36px; min-height:36px; }
+}
+
+/* ── A13 인쇄/PDF ─────────────────────────────── */
+@media print {
+  body { background:#fff !important; color:#000 !important; }
+  body::before { display:none; }
+  .header,.nav,.match-bar,.step-bar,.fin-bar,#toast-wrap,.modal-overlay,details summary,button { display:none !important; }
+  .main { padding:0; max-width:100%; }
+  .match-hdr,.card,.team-panel,.sum-card { background:#fff !important; border:1px solid #888 !important; color:#000 !important; box-shadow:none !important; page-break-inside:avoid; }
+  .grade { background:#eee !important; color:#000 !important; border:1px solid #999 !important; }
+  .pb-alert { background:#fff !important; border:1px solid #999 !important; color:#000 !important; }
+  .mh-team.red { color:#c00 !important; }
+  .mh-team.blue { color:#0044aa !important; }
+  details { display:block !important; }
+  details > summary { display:none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="logo">HADO</div>
+    <div class="logo-sub">CHECK-IN v6 · 김해</div>
+  </div>
+  <div class="hdr-center">
+    <div class="hdr-title">2026 HADO 리저널 매치 — 김해</div>
+    <div class="hdr-meta" id="hdr-meta">9팀 · 36경기 · 28명</div>
+  </div>
+  <div class="hdr-right">
+    <span class="sm"><span class="sdot ok" id="sdot"></span><span id="sstat">대기</span></span>
+    <button class="btn btn-sm btn-orange" onclick="forceSaveAll()" title="모든 경기 데이터 강제 저장">💾 전체 저장</button>
+    <button class="btn btn-sm btn-primary" onclick="forceSaveCurrent()" title="현재 경기만 강제 저장">⚡ 현재 저장</button>
+    <button class="btn btn-sm btn-secondary" onclick="exportCSV()" title="CSV 내보내기">📥 CSV</button>
+    <button class="btn btn-sm btn-secondary" onclick="openSettings()" title="설정">⚙</button>
+  </div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <button class="nav-btn active" id="nav-checkin" onclick="goTab('checkin')">🎮 체크인</button>
+  <button class="nav-btn" id="nav-schedule" onclick="goTab('schedule')">📋 경기 순서</button>
+  <button class="nav-btn" id="nav-summary" onclick="goTab('summary')">📊 현황</button>
+  <button class="nav-btn" id="nav-roster" onclick="goTab('roster')">👥 선수 명단</button>
+</div>
+
+<!-- MATCH BAR -->
+<div class="match-bar" id="match-bar" style="display:none"></div>
+
+<!-- MAIN -->
+<div class="main" id="main"></div>
+
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal">
+    <div class="modal-title">⚙ 설정</div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">Apps Script Web App URL</label>
+      <input type="text" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec">
+      <div class="sm dim" style="margin-top:5px">시트로 저장할 Apps Script 웹앱 URL을 붙여넣으세요. 비우면 로컬 메모리만 사용.</div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="lbl"><input type="checkbox" id="cfg-autosave" style="width:auto;display:inline-block;margin-right:5px"> 자동 저장 활성화</label>
+      <div class="sm dim">데이터 변경 시 1초 후 자동으로 시트에 저장</div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">로컬 백업 (JSON)</label>
+      <div class="flex-row" style="flex-wrap:wrap">
+        <button class="btn btn-sm btn-secondary" onclick="exportJSON()">📤 내보내기</button>
+        <button class="btn btn-sm btn-secondary" onclick="importJSONPrompt()">📥 가져오기</button>
+        <button class="btn btn-sm btn-secondary" onclick="showSnapshotsModal()">⏮ 스냅샷 복원</button>
+        <button class="btn btn-sm btn-danger" onclick="clearAllData()">🗑 전체 초기화</button>
+      </div>
+      <div class="sm dim" style="margin-top:5px">스냅샷은 ${CFG?.snapshotInterval||5}분 주기로 자동 생성, ${CFG?.snapshotRetention||7}일 보관</div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">데이터 임포트 (CSV)</label>
+      <div class="flex-row" style="flex-wrap:wrap">
+        <button class="btn btn-sm btn-secondary" onclick="importPlayersCSV()">👥 선수명단</button>
+        <button class="btn btn-sm btn-secondary" onclick="importScheduleCSV()">📋 경기일정</button>
+      </div>
+      <div class="sm dim" style="margin-top:5px">시즌 갱신 시 사용. 기존 데이터를 교체합니다.</div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">권한 / 모드</label>
+      <select id="cfg-role" style="margin-bottom:6px">
+        <option value="operator">운영진 (편집 가능)</option>
+        <option value="admin">관리자 (전체 권한)</option>
+        <option value="viewer">뷰어 (읽기 전용)</option>
+      </select>
+      <label class="lbl"><input type="checkbox" id="cfg-cb" style="width:auto;display:inline-block;margin-right:5px"> 색맹 친화 모드 (아이콘/패턴 보강)</label>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">Discord Webhook URL (선택)</label>
+      <input type="text" id="cfg-discord" placeholder="https://discord.com/api/webhooks/...">
+      <div class="sm dim" style="margin-top:5px">결과 입력 시 자동 게시</div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">Firebase Realtime DB URL (실시간 동기화)</label>
+      <input type="text" id="cfg-firebase" placeholder="https://your-project.firebaseio.com">
+      <label class="lbl" style="margin-top:6px"><input type="checkbox" id="cfg-sync" style="width:auto;display:inline-block;margin-right:5px"> 동기화 활성화 (10초 폴링)</label>
+      <div class="sm dim" style="margin-top:5px">여러 운영진 동시 작업 시 사용. 같은 DB URL 공유 필요.</div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label class="lbl">공개 / 스트리밍</label>
+      <div class="flex-row" style="flex-wrap:wrap;gap:6px">
+        <button class="btn btn-sm btn-secondary" onclick="copyPublicURL()">👁 공개 뷰 URL</button>
+        <button class="btn btn-sm btn-secondary" onclick="copyOverlayURL()">📺 OBS 오버레이 URL</button>
+        <button class="btn btn-sm btn-secondary" onclick="printReport()">🖨 인쇄 / PDF</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeSettings()">닫기</button>
+      <button class="btn btn-primary" onclick="saveSettings()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- A2: 스냅샷 복원 모달 -->
+<div class="modal-overlay" id="modal-snapshots">
+  <div class="modal">
+    <div class="modal-title">⏮ 스냅샷 복원</div>
+    <div id="snapshots-list" class="sm" style="max-height:300px;overflow-y:auto">로딩 중…</div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-snapshots').classList.remove('open')">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- A5: 사전 확정 모달 -->
+<div class="modal-overlay" id="modal-prefinalize">
+  <div class="modal" style="width:580px">
+    <div class="modal-title">✅ 체크인 확정 직전 검토</div>
+    <div id="prefinalize-body">로딩 중…</div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-prefinalize').classList.remove('open')">취소</button>
+      <button class="btn btn-primary" id="prefinalize-confirm">✓ 이대로 확정</button>
+    </div>
+  </div>
+</div>
+
+<!-- ★ 김해 리저널: 조배정 모달 -->
+<div class="modal-overlay" id="modal-groupdraw" style="z-index:300">
+  <div class="modal" style="width:560px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title">🎲 조배정 — 팀 배정</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:16px;padding:10px;background:var(--bg2);border-radius:6px;line-height:1.7">
+      각 코드에 실제 팀명을 배정하세요.<br>
+      <strong style="color:var(--accent)">A</strong>(어드밴스) · <strong style="color:var(--green)">R</strong>(루키) · <strong style="color:var(--orange)">P</strong>(프리루키) 순으로 배정하는 게 원칙이나 자유롭게 배정 가능합니다.
+    </div>
+    <div id="groupdraw-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
+    <div style="margin-top:14px;font-size:10px;color:var(--text3)">※ 확정 후에도 현황 탭에서 다시 수정할 수 있습니다.</div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeGroupDrawModal()">나중에</button>
+      <button class="btn btn-primary" onclick="confirmGroupDraw()">✓ 조배정 확정</button>
+    </div>
+  </div>
+</div>
+
+<!-- ★ 김해 리저널: 본선 배정 모달 -->
+<div class="modal-overlay" id="modal-gimhae-bracket">
+  <div class="modal" style="width:520px">
+    <div class="modal-title">🏆 본선 팀 배정</div>
+    <div id="gimhae-bracket-body" style="padding:4px 0"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeGimhaeBracketModal()">취소</button>
+      <button class="btn btn-primary" onclick="confirmGimhaeBracketAssign()">✓ 배정 확정</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// ① 하드코딩된 데이터 (시트에서 직접 박은 것 — GET API 의존성 제거)
+// ═══════════════════════════════════════════════════════════════
+// ★ 2026 HADO 리저널 매치 in 김해
+// 조배정 완료 전: 팀코드(A1·A2·R1·R2·P1·P2·P3·P4) 기준으로 SCHEDULE 구성
+// 조배정 확정 후: openGroupDrawModal()로 실제 팀명 매핑 → SCHEDULE 자동 업데이트
+
+// ── 팀 코드 정의 ──────────────────────────────────────────────
+// A: 어드밴스급, R: 루키급, P: 프리루키급
+const GROUP_CODES = ['A1','A2','R1','R2','P1','P2','P3','P4'];
+
+// ── 실제 팀명 목록 (조배정 드롭다운에 사용) ───────────────────
+const TEAM_LIST = ['RGB','PRISM','HUNTER','FELIX','명불허전','오빠짱','빠야짱','대진짱'];
+
+// ── 참가명단 (명단1 기준 하드코딩 — CSV 업로드로 덮어쓰기 가능) ──
+const PLAYERS = [
+  // RGB (어드밴스)
+  { memberId:'P-2304-23-048', name:'ZERO',    nickname:'정지원', number:0,  team:'RGB',   grade:'어드밴스', club:'카이로스' },
+  { memberId:'P-2304-23-032', name:'AMUSE',   nickname:'김수진', number:13, team:'RGB',   grade:'어드밴스', club:'카이로스' },
+  { memberId:'P-2304-23-030', name:'BINNY',   nickname:'권현빈', number:4,  team:'RGB',   grade:'어드밴스', club:'카이로스' },
+  { memberId:'P-2304-23-040', name:'NICK',    nickname:'이동윤', number:42, team:'RGB',   grade:'어드밴스', club:'카이로스' },
+  // PRISM (루키)
+  { memberId:'P-2304-25-050', name:'LUCY',    nickname:'유예림', number:99, team:'PRISM', grade:'루키',     club:'카이로스' },
+  { memberId:'P-2304-25-127', name:'JINNY',   nickname:'박윤진', number:88, team:'PRISM', grade:'루키',     club:'카이로스' },
+  { memberId:'P-2304-25-128', name:'JADE',    nickname:'김지유', number:32, team:'PRISM', grade:'루키',     club:'카이로스' },
+  { memberId:'P-2304-23-031', name:'JOON',    nickname:'김민준', number:12, team:'PRISM', grade:'루키',     club:'카이로스' },
+  // HUNTER (어드밴스)
+  { memberId:'P-2304-23-042', name:'RIA',     nickname:'이준민', number:17, team:'HUNTER',grade:'어드밴스', club:'카이로스' },
+  { memberId:'P-2304-23-043', name:'FOREST',  nickname:'이준형', number:8,  team:'HUNTER',grade:'어드밴스', club:'카이로스' },
+  { memberId:'P-2304-23-046', name:'MORAL',   nickname:'이현준', number:10, team:'HUNTER',grade:'어드밴스', club:'카이로스' },
+  // FELIX (루키)
+  { memberId:'P-2304-23-039', name:'DDODDO',  nickname:'이도희', number:10, team:'FELIX', grade:'루키',     club:'카이로스' },
+  { memberId:'P-2304-23-034', name:'JESSICA', nickname:'배민서', number:17, team:'FELIX', grade:'루키',     club:'카이로스' },
+  { memberId:'P-2304-23-044', name:'JIWOO',   nickname:'이지우', number:2,  team:'FELIX', grade:'루키',     club:'카이로스' },
+  { memberId:'P-2304-23-037', name:'LEAD',    nickname:'신현서', number:16, team:'FELIX', grade:'루키',     club:'카이로스' },
+  // 명불허전 (프리루키)
+  { memberId:'', name:'KAY',      nickname:'박도경', number:0, team:'명불허전', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'TREE',     nickname:'오윤우', number:0, team:'명불허전', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'JINA',     nickname:'정지나', number:0, team:'명불허전', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'HI',       nickname:'조혜원', number:0, team:'명불허전', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'HO',       nickname:'이성호', number:0, team:'명불허전', grade:'프리루키', club:'수로즈' },
+  // 오빠짱 (프리루키)
+  { memberId:'', name:'재째',     nickname:'김재민', number:0, team:'오빠짱', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'왕자지훈', nickname:'정승호', number:0, team:'오빠짱', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'알리왕자', nickname:'강성우', number:0, team:'오빠짱', grade:'프리루키', club:'수로즈' },
+  // 빠야짱 (프리루키)
+  { memberId:'', name:'작지율',   nickname:'권지율', number:0, team:'빠야짱', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'푸바오',   nickname:'이경수', number:0, team:'빠야짱', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'섀도우건재',nickname:'조건재',number:0, team:'빠야짱', grade:'프리루키', club:'수로즈' },
+  // 대진짱 (프리루키)
+  { memberId:'', name:'에이스짱구',nickname:'신민승',number:0, team:'대진짱', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'해피유리', nickname:'강나윤', number:0, team:'대진짱', grade:'프리루키', club:'수로즈' },
+  { memberId:'', name:'번개흰둥이',nickname:'김범석',number:0, team:'대진짱', grade:'프리루키', club:'수로즈' },
+];
+
+// 팀 순번 (조배정 확정 후 자동 갱신됨 — 초기값은 코드명)
+const TEAMS = {
+  1:'A1', 2:'A2', 3:'R1', 4:'R2',
+  5:'P1', 6:'P2', 7:'P3', 8:'P4',
+};
+
+// 팀 메타데이터 — P팀 티어는 getPickBanMode 내부에서 그룹코드(P1~P4) 기반으로 직접 처리
+const TEAM_META = {};
+
+// 경기 대진 (팀명은 조배정 확정 후 자동 세팅)
+// round: r1=1라운드, cl=챌린저, wn=위너, sf=4강, 3rd=3·4위, f=결승
+const SCHEDULE = [
+  // 1라운드 — 단판
+  { id:1, label:'1경기', round:'r1', redOrder:1, blueOrder:5, redName:'A1', blueName:'P1' },
+  { id:2, label:'2경기', round:'r1', redOrder:2, blueOrder:6, redName:'A2', blueName:'P2' },
+  { id:3, label:'3경기', round:'r1', redOrder:3, blueOrder:7, redName:'R1', blueName:'P3' },
+  { id:4, label:'4경기', round:'r1', redOrder:4, blueOrder:8, redName:'R2', blueName:'P4' },
+  // 2라운드 챌린저 — 단판
+  { id:5, label:'5경기', round:'cl', redOrder:0, blueOrder:0, redName:'1경기 패자', blueName:'2경기 패자' },
+  { id:6, label:'6경기', round:'cl', redOrder:0, blueOrder:0, redName:'3경기 패자', blueName:'4경기 패자' },
+  // 2라운드 위너 — 단판
+  { id:7, label:'7경기', round:'wn', redOrder:0, blueOrder:0, redName:'1경기 승자', blueName:'2경기 승자' },
+  { id:8, label:'8경기', round:'wn', redOrder:0, blueOrder:0, redName:'3경기 승자', blueName:'4경기 승자' },
+  // 4강 — 3판 2선승
+  { id:9,  label:'4강 1경기', round:'sf', set:1, redOrder:0, blueOrder:0, redName:'5경기 승자', blueName:'6경기 승자' },
+  { id:10, label:'4강 1경기', round:'sf', set:2, redOrder:0, blueOrder:0, redName:'5경기 승자', blueName:'6경기 승자' },
+  { id:11, label:'4강 1경기', round:'sf', set:3, redOrder:0, blueOrder:0, redName:'5경기 승자', blueName:'6경기 승자' },
+  { id:12, label:'4강 2경기', round:'sf', set:1, redOrder:0, blueOrder:0, redName:'7경기 승자', blueName:'8경기 승자' },
+  { id:13, label:'4강 2경기', round:'sf', set:2, redOrder:0, blueOrder:0, redName:'7경기 승자', blueName:'8경기 승자' },
+  { id:14, label:'4강 2경기', round:'sf', set:3, redOrder:0, blueOrder:0, redName:'7경기 승자', blueName:'8경기 승자' },
+  // 3·4위전 — 3판 2선승
+  { id:15, label:'3·4위전', round:'3rd', set:1, redOrder:0, blueOrder:0, redName:'9경기 패자', blueName:'10경기 패자' },
+  { id:16, label:'3·4위전', round:'3rd', set:2, redOrder:0, blueOrder:0, redName:'9경기 패자', blueName:'10경기 패자' },
+  { id:17, label:'3·4위전', round:'3rd', set:3, redOrder:0, blueOrder:0, redName:'9경기 패자', blueName:'10경기 패자' },
+  // 결승 — 3판 2선승
+  { id:18, label:'결승전', round:'f', set:1, redOrder:0, blueOrder:0, redName:'9경기 승자', blueName:'10경기 승자' },
+  { id:19, label:'결승전', round:'f', set:2, redOrder:0, blueOrder:0, redName:'9경기 승자', blueName:'10경기 승자' },
+  { id:20, label:'결승전', round:'f', set:3, redOrder:0, blueOrder:0, redName:'9경기 승자', blueName:'10경기 승자' },
+];
+
+// 캐릭터 데이터
+const CHARS = [
+  {id:'juroci',  name:'쥬로시',   icon:'🔵', desc:'큰 에너지볼 투척, 범위형 공격',     rec:[3,1,1,5]},
+  {id:'lilian',  name:'릴리안',   icon:'🏹', desc:'쉴드 관통 화살, 다수 동시 적중',    rec:[4,1,1,4]},
+  {id:'wukong',  name:'우콩',     icon:'🔥', desc:'불길 소환, 범위 지속 데미지',       rec:[2,1,2,5]},
+  {id:'victoria',name:'빅토리아', icon:'💣', desc:'5초 후 폭파, 광역 피해',           rec:[3,2,1,4]},
+  {id:'ryan',    name:'라이언',   icon:'🛡️', desc:'쉴드로 팀원 보호',                 rec:[3,1,1,5]},
+  {id:'elivan',  name:'엘리반',   icon:'⚡', desc:'스킬 사용 시 잠시 무적',           rec:[3,3,2,2]},
+  {id:'lin',     name:'린',       icon:'💚', desc:'모든 팀원 체력 회복',               rec:[1,1,3,5]},
+  {id:'otto',    name:'오토',     icon:'🤖', desc:'드론 소환, 자동 공격',             rec:[3,4,2,1]},
+  {id:'nicolas', name:'니콜라스', icon:'🌀', desc:'체력 흡수 X볼 발사',               rec:[4,3,1,2]},
+  {id:'diana',   name:'다이애나', icon:'🌙', desc:'지속 피해 저주 X볼',               rec:[3,3,2,2]},
+  {id:'shadow',  name:'SHADOW',   icon:'👥', desc:'분신 소환, 동시 공격',             rec:[3,3,3,1]},
+  {id:'hanzo',   name:'HANZO',    icon:'🥷', desc:'스킬 사용 시 라이프 비표시',       rec:[3,4,2,1]},
+];
+const STAT_LABELS = ['ATK','DEF','SPD','SHD'];
+
+// ═══════════════════════════════════════════════════════════════
+// ② 앱 상태
+// ═══════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'hado_checkin_gimhae_2026';
+const CFG_KEY     = 'hado_checkin_gimhae_2026_cfg';
+
+const A = {
+  tab: 'checkin',
+  currentMatch: 1,
+  step:  {},  // matchId → 0|1|2
+  sel:   {},  // matchId → { redSel:[], blueSel:[], redConf, blueConf }
+  picks: {},  // matchId → { [turn]: { playerName, side, team, charId, stat:[a,d,s,sh] } }
+  chars: {},  // matchId → { [playerName]: { charId, stat:[a,d,s,sh] } }
+  done:  {},  // matchId → boolean (체크인 확정됨)
+  dirty: {},  // matchId → boolean (마지막 저장 이후 변경 있음)
+  lockedPb: {}, // matchId → snapshot of pickban mode (잠긴 시점의 모드 스냅샷)
+  history: {},  // matchId → array of { ts, label, undoSnap } (변경 이력, 언두용)
+  result:  {},  // matchId → { winner:'red'|'blue', notes, kda:{[name]:{k,d,a}}, ts } (P9)
+};
+
+// ── 변경 이력 / 언두 헬퍼 ─────────────────────────────────────────
+const HISTORY_LIMIT = 50;
+// 매치별 상태 스냅샷 (변경 직전에 호출하여 이전 상태를 캡처)
+function snapshotMatchState(matchId) {
+  return {
+    sel:    A.sel[matchId]    ? JSON.parse(JSON.stringify(A.sel[matchId]))    : undefined,
+    picks:  A.picks[matchId]  ? JSON.parse(JSON.stringify(A.picks[matchId]))  : undefined,
+    chars:  A.chars[matchId]  ? JSON.parse(JSON.stringify(A.chars[matchId]))  : undefined,
+    locked: A.lockedPb && A.lockedPb[matchId] ? JSON.parse(JSON.stringify(A.lockedPb[matchId])) : undefined,
+  };
+}
+// 스냅샷 복원
+function restoreMatchState(matchId, snap) {
+  if (snap.sel === undefined) delete A.sel[matchId];   else A.sel[matchId]   = snap.sel;
+  if (snap.picks === undefined) delete A.picks[matchId]; else A.picks[matchId] = snap.picks;
+  if (snap.chars === undefined) delete A.chars[matchId]; else A.chars[matchId] = snap.chars;
+  if (!A.lockedPb) A.lockedPb = {};
+  if (snap.locked === undefined) delete A.lockedPb[matchId]; else A.lockedPb[matchId] = snap.locked;
+}
+// 액션 실행 전에 호출해서 이력 기록
+function pushHistory(matchId, label) {
+  if (!A.history) A.history = {};
+  if (!A.history[matchId]) A.history[matchId] = [];
+  A.history[matchId].push({ ts: Date.now(), label, undoSnap: snapshotMatchState(matchId) });
+  if (A.history[matchId].length > HISTORY_LIMIT) A.history[matchId].shift();
+}
+// 마지막 액션 되돌리기
+function undoLast(matchId) {
+  const hist = A.history?.[matchId];
+  if (!hist || !hist.length) { toast('되돌릴 작업이 없습니다', 'warn'); return; }
+  const last = hist.pop();
+  restoreMatchState(matchId, last.undoSnap);
+  markDirty(matchId);
+  saveState();
+  toast(`↩ 되돌림: ${last.label}`, 'ok');
+  renderMain();
+}
+// 이력 전체 비우기
+function clearHistory(matchId) {
+  if (A.history && A.history[matchId]) delete A.history[matchId];
+  saveState();
+  renderMain();
+}
+
+const CFG = {
+  url: '',
+  autosave: true,
+  role: 'operator',     // A14: 'operator' | 'admin' | 'viewer'
+  cbMode: false,        // A7: 색맹 친화 모드
+  discordUrl: '',       // A11: Discord webhook URL (확정 시 자동 게시)
+  firebaseUrl: '',      // P10: Firebase Realtime DB URL (https://xxx.firebaseio.com)
+  syncEnabled: false,   // P10: 실시간 동기화 활성화
+  snapshotInterval: 5,  // A2: 자동 스냅샷 주기 (분)
+  snapshotRetention: 7, // A2: 스냅샷 보관 일수
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ★ 김해 리저널: 조배정 + 본선 배정 시스템
+// ═══════════════════════════════════════════════════════════════
+
+const GROUPDRAW_KEY   = 'hado_gimhae_groupdraw_2026';
+const GH_BRACKET_KEY  = 'hado_gimhae_bracket_2026';
+
+// 코드→팀명 매핑 저장 객체 (조배정 확정 후 채워짐)
+let groupDrawMap = {}; // { A1:'RGB', A2:'HUNTER', ... }
+
+// ── 조배정 로드 (새로고침 복원) ───────────────────────────────
+function loadGroupDraw() {
+  try {
+    const raw = localStorage.getItem(GROUPDRAW_KEY);
+    if (!raw) return;
+    groupDrawMap = JSON.parse(raw);
+    applyGroupDrawToSchedule(groupDrawMap);
+    applyGroupDrawToTeams(groupDrawMap);
+  } catch(e) {}
+}
+
+function saveGroupDraw(map) {
+  try { localStorage.setItem(GROUPDRAW_KEY, JSON.stringify(map)); } catch(e) {}
+}
+
+// SCHEDULE의 코드명을 실제 팀명으로 교체
+function applyGroupDrawToSchedule(map) {
+  SCHEDULE.forEach(m => {
+    // 1라운드만 직접 팀명 적용 (나머지는 문맥 설명으로 유지)
+    if (m.round === 'r1') {
+      const codeToTeam = (code) => map[code] || code;
+      // redOrder/blueOrder → GROUP_CODES 인덱스(1-based)
+      const rc = GROUP_CODES[m.redOrder - 1];
+      const bc = GROUP_CODES[m.blueOrder - 1];
+      if (rc) m.redName  = codeToTeam(rc);
+      if (bc) m.blueName = codeToTeam(bc);
+    }
+  });
+}
+
+// TEAMS 객체 실제 팀명으로 갱신 (픽앤밴 로직에서 사용)
+function applyGroupDrawToTeams(map) {
+  GROUP_CODES.forEach((code, i) => {
+    if (map[code]) TEAMS[i + 1] = map[code];
+  });
+  // PLAYERS의 team 필드도 코드→팀명으로 갱신 (배정 전에는 팀명이 이미 있으므로 skip)
+}
+
+// ── 조배정 모달 ───────────────────────────────────────────────
+function openGroupDrawModal() {
+  const body = document.getElementById('groupdraw-body');
+  const codeColors = { A:'var(--accent)', R:'var(--green)', P:'var(--orange)' };
+
+  body.innerHTML = GROUP_CODES.map(code => {
+    const colorKey = code[0];
+    const color = codeColors[colorKey] || 'var(--text)';
+    const current = groupDrawMap[code] || '';
+    return `
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+        <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:6px">${code}</div>
+        <select id="gd-${code}" style="width:100%;padding:7px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
+          <option value="">-- 미배정 --</option>
+          ${TEAM_LIST.map(t => `<option value="${esc(t)}" ${t === current ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+        </select>
+      </div>`;
+  }).join('');
+
+  document.getElementById('modal-groupdraw').classList.add('open');
+}
+
+function closeGroupDrawModal() {
+  document.getElementById('modal-groupdraw').classList.remove('open');
+}
+
+function confirmGroupDraw() {
+  const map = {};
+  let emptyCount = 0;
+  GROUP_CODES.forEach(code => {
+    const val = document.getElementById(`gd-${code}`)?.value || '';
+    if (!val) emptyCount++;
+    else map[code] = val;
+  });
+
+  // 중복 체크
+  const vals = Object.values(map);
+  if (new Set(vals).size !== vals.length) {
+    toast('같은 팀이 두 코드에 중복 배정되어 있습니다', 'err'); return;
+  }
+  if (emptyCount > 0) {
+    if (!confirm(`${emptyCount}개 코드가 미배정 상태입니다. 이대로 확정하시겠습니까?`)) return;
+  }
+
+  groupDrawMap = map;
+  saveGroupDraw(map);
+  applyGroupDrawToSchedule(map);
+  applyGroupDrawToTeams(map);
+  closeGroupDrawModal();
+
+  const summary = GROUP_CODES.map(c => `${c}→${map[c]||'미배정'}`).join(' / ');
+  toast(`조배정 확정 ✓  ${summary}`, 'ok');
+  renderMatchBar();
+  renderMain();
+}
+
+// ── 본선 배정 ─────────────────────────────────────────────────
+function loadGimhaeBracket() {
+  try {
+    const raw = localStorage.getItem(GH_BRACKET_KEY);
+    if (!raw) return;
+    const b = JSON.parse(raw);
+    if (b.sf1) ghUpdateTeam([9,10,11],  b.sf1.red, b.sf1.blue);
+    if (b.sf2) ghUpdateTeam([12,13,14], b.sf2.red, b.sf2.blue);
+    if (b.m3)  ghUpdateTeam([15,16,17], b.m3.red,  b.m3.blue);
+    if (b.f)   ghUpdateTeam([18,19,20], b.f.red,   b.f.blue);
+  } catch(e) {}
+}
+
+function ghUpdateTeam(ids, red, blue) {
+  ids.forEach(id => {
+    const m = SCHEDULE.find(x => x.id === id);
+    if (m) { m.redName = red; m.blueName = blue; }
+  });
+}
+
+function ghGetMatchWinner(matchId) {
+  if (!A.done[matchId]) return null;
+  const m = SCHEDULE.find(x => x.id === matchId);
+  const w = A.result[matchId]?.winner;
+  if (!m || !w) return null;
+  return w === 'red' ? m.redName : m.blueName;
+}
+
+function ghGetMatchLoser(matchId) {
+  const winner = ghGetMatchWinner(matchId);
+  if (!winner) return null;
+  const m = SCHEDULE.find(x => x.id === matchId);
+  return winner === m.redName ? m.blueName : m.redName;
+}
+
+function ghGetSFWinner(id1, id2, id3) {
+  let rW = 0, bW = 0;
+  const m = SCHEDULE.find(x => x.id === id1);
+  if (!m) return null;
+  [id1,id2,id3].forEach(id => {
+    const r = A.result[id];
+    if (!r?.winner) return;
+    r.winner === 'red' ? rW++ : bW++;
+  });
+  if (rW >= 2) return m.redName;
+  if (bW >= 2) return m.blueName;
+  return null;
+}
+
+function ghGetSFLoser(id1, id2, id3) {
+  const w = ghGetSFWinner(id1,id2,id3);
+  if (!w) return null;
+  const m = SCHEDULE.find(x => x.id === id1);
+  return w === m.redName ? m.blueName : m.redName;
+}
+
+function openGimhaeBracketModal(phase) {
+  const body = document.getElementById('gimhae-bracket-body');
+  const teamNames = Object.values(TEAMS).filter(t => !GROUP_CODES.includes(t));
+  const allTeams  = teamNames.length ? teamNames : TEAM_LIST;
+
+  const makeOpts = (teams, selected) =>
+    `<option value="">-- 선택 --</option>` +
+    teams.map(t => `<option value="${esc(t)}" ${t===selected?'selected':''}>${esc(t)}</option>`).join('');
+
+  if (phase === 'sf') {
+    // 챌린저 2라운드 승자
+    const cl1w = ghGetMatchWinner(5);
+    const cl2w = ghGetMatchWinner(6);
+    // 위너 2라운드 승자
+    const wn1w = ghGetMatchWinner(7);
+    const wn2w = ghGetMatchWinner(8);
+
+    body.innerHTML = `
+      <div style="font-size:11px;color:var(--text2);margin-bottom:14px;padding:10px;background:var(--bg2);border-radius:6px;line-height:1.7">
+        4강 구성: <strong>챌린저 2라운드 승자</strong> vs <strong>위너 2라운드 승자</strong> (교차)
+      </div>
+      <div style="margin-bottom:18px">
+        <div style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:10px">4강 1경기 (9·10·11경기)</div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center">
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:4px">🔴 레드팀</div>
+            <select id="ghsf1-red" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">${makeOpts(allTeams,cl1w||'')}</select>
+            ${cl1w?`<div style="font-size:10px;color:var(--green);margin-top:3px">추천: ${cl1w} (5경기 승)</div>`:''}
+          </div>
+          <div style="color:var(--text3);font-weight:700">VS</div>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:4px">🔵 블루팀</div>
+            <select id="ghsf1-blue" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">${makeOpts(allTeams,wn2w||'')}</select>
+            ${wn2w?`<div style="font-size:10px;color:var(--green);margin-top:3px">추천: ${wn2w} (8경기 승)</div>`:''}
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:10px">4강 2경기 (12·13·14경기)</div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center">
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:4px">🔴 레드팀</div>
+            <select id="ghsf2-red" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">${makeOpts(allTeams,wn1w||'')}</select>
+            ${wn1w?`<div style="font-size:10px;color:var(--green);margin-top:3px">추천: ${wn1w} (7경기 승)</div>`:''}
+          </div>
+          <div style="color:var(--text3);font-weight:700">VS</div>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:4px">🔵 블루팀</div>
+            <select id="ghsf2-blue" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">${makeOpts(allTeams,cl2w||'')}</select>
+            ${cl2w?`<div style="font-size:10px;color:var(--green);margin-top:3px">추천: ${cl2w} (6경기 승)</div>`:''}
+          </div>
+        </div>
+      </div>`;
+    body.dataset.phase = 'sf';
+
+  } else if (phase === 'final') {
+    const sf1w = ghGetSFWinner(9,10,11);
+    const sf2w = ghGetSFWinner(12,13,14);
+    const sf1l = ghGetSFLoser(9,10,11);
+    const sf2l = ghGetSFLoser(12,13,14);
+
+    body.innerHTML = `
+      <div style="margin-bottom:18px">
+        <div style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:10px">결승전 (18·19·20경기)</div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center">
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:4px">🔴 레드팀</div>
+            <select id="ghf-red" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">${makeOpts(allTeams,sf1w||'')}</select>
+            ${sf1w?`<div style="font-size:10px;color:var(--green);margin-top:3px">추천: ${sf1w} (4강1 승)</div>`:''}
+          </div>
+          <div style="color:var(--text3);font-weight:700">VS</div>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:4px">🔵 블루팀</div>
+            <select id="ghf-blue" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">${makeOpts(allTeams,sf2w||'')}</select>
+            ${sf2w?`<div style="font-size:10px;color:var(--green);margin-top:3px">추천: ${sf2w} (4강2 승)</div>`:''}
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:10px">3·4위전 (15·16·17경기)</div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center">
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:4px">🔴 레드팀</div>
+            <select id="ghm3-red" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">${makeOpts(allTeams,sf1l||'')}</select>
+          </div>
+          <div style="color:var(--text3);font-weight:700">VS</div>
+          <div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:4px">🔵 블루팀</div>
+            <select id="ghm3-blue" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">${makeOpts(allTeams,sf2l||'')}</select>
+          </div>
+        </div>
+      </div>`;
+    body.dataset.phase = 'final';
+  }
+
+  document.getElementById('modal-gimhae-bracket').classList.add('open');
+}
+
+function closeGimhaeBracketModal() {
+  document.getElementById('modal-gimhae-bracket').classList.remove('open');
+}
+
+function confirmGimhaeBracketAssign() {
+  const phase = document.getElementById('gimhae-bracket-body').dataset.phase;
+  const bd = JSON.parse(localStorage.getItem(GH_BRACKET_KEY) || '{}');
+
+  if (phase === 'sf') {
+    const s1r = document.getElementById('ghsf1-red').value;
+    const s1b = document.getElementById('ghsf1-blue').value;
+    const s2r = document.getElementById('ghsf2-red').value;
+    const s2b = document.getElementById('ghsf2-blue').value;
+    if (!s1r||!s1b||!s2r||!s2b) { toast('모든 팀을 선택해주세요','err'); return; }
+    if (s1r===s1b||s2r===s2b)    { toast('같은 팀을 양쪽에 배정할 수 없습니다','err'); return; }
+    if (new Set([s1r,s1b,s2r,s2b]).size !== 4) { toast('중복 배정된 팀이 있습니다','err'); return; }
+    ghUpdateTeam([9,10,11],  s1r, s1b);
+    ghUpdateTeam([12,13,14], s2r, s2b);
+    bd.sf1 = {red:s1r,blue:s1b}; bd.sf2 = {red:s2r,blue:s2b};
+    localStorage.setItem(GH_BRACKET_KEY, JSON.stringify(bd));
+    toast(`4강 배정 완료 ✓  ${s1r} vs ${s1b} / ${s2r} vs ${s2b}`,'ok');
+
+  } else if (phase === 'final') {
+    const fr  = document.getElementById('ghf-red').value;
+    const fb  = document.getElementById('ghf-blue').value;
+    const m3r = document.getElementById('ghm3-red').value;
+    const m3b = document.getElementById('ghm3-blue').value;
+    if (!fr||!fb||!m3r||!m3b) { toast('모든 팀을 선택해주세요','err'); return; }
+    if (fr===fb||m3r===m3b)   { toast('같은 팀을 양쪽에 배정할 수 없습니다','err'); return; }
+    ghUpdateTeam([18,19,20], fr,  fb);
+    ghUpdateTeam([15,16,17], m3r, m3b);
+    bd.f  = {red:fr, blue:fb};  bd.m3 = {red:m3r,blue:m3b};
+    localStorage.setItem(GH_BRACKET_KEY, JSON.stringify(bd));
+    toast(`결승/3·4위전 배정 완료 ✓  결승: ${fr} vs ${fb} / 3·4위: ${m3r} vs ${m3b}`,'ok');
+  }
+
+  closeGimhaeBracketModal();
+  renderMatchBar();
+  renderMain();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ③ 설정 / 저장 / 로컬 백업
+// ═══════════════════════════════════════════════════════════════
+function loadCfg() {
+  try {
+    const raw = localStorage.getItem(CFG_KEY);
+    if (raw) Object.assign(CFG, JSON.parse(raw));
+  } catch(e) {}
+}
+function saveCfg() {
+  try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch(e) {}
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s.step)  A.step  = s.step;
+      if (s.sel)   A.sel   = s.sel;
+      if (s.picks) A.picks = s.picks;
+      if (s.chars) A.chars = s.chars;
+      if (s.done)  A.done  = s.done;
+      if (s.lockedPb) A.lockedPb = s.lockedPb;
+      if (s.history)  A.history  = s.history;
+      if (s.result)   A.result   = s.result;
+      if (s.currentMatch) A.currentMatch = s.currentMatch;
+    }
+  } catch(e) {}
+}
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      step: A.step, sel: A.sel, picks: A.picks,
+      chars: A.chars, done: A.done, lockedPb: A.lockedPb,
+      history: A.history, result: A.result,
+      currentMatch: A.currentMatch,
+    }));
+    // A3: 다른 탭에 변경 알림용 — 자기 자신은 무시
+    try { localStorage.setItem(STORAGE_KEY+'_lastWrite', String(Date.now())+'|'+_tabId); } catch(e){}
+  } catch(e) {}
+}
+
+function openSettings() {
+  document.getElementById('cfg-url').value = CFG.url || '';
+  document.getElementById('cfg-autosave').checked = !!CFG.autosave;
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) { if (el.type==='checkbox') el.checked = !!v; else el.value = v||''; } };
+  setVal('cfg-role', CFG.role || 'operator');
+  setVal('cfg-cb', CFG.cbMode);
+  setVal('cfg-discord', CFG.discordUrl);
+  setVal('cfg-firebase', CFG.firebaseUrl);
+  setVal('cfg-sync', CFG.syncEnabled);
+  document.getElementById('modal-settings').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('modal-settings').classList.remove('open');
+}
+function saveSettings() {
+  const getVal = (id) => { const el = document.getElementById(id); if (!el) return null; return el.type==='checkbox' ? el.checked : el.value.trim(); };
+  CFG.url = document.getElementById('cfg-url').value.trim();
+  CFG.autosave = document.getElementById('cfg-autosave').checked;
+  if (getVal('cfg-role') !== null)     CFG.role        = getVal('cfg-role');
+  if (getVal('cfg-cb') !== null)       CFG.cbMode      = getVal('cfg-cb');
+  if (getVal('cfg-discord') !== null)  CFG.discordUrl  = getVal('cfg-discord');
+  if (getVal('cfg-firebase') !== null) CFG.firebaseUrl = getVal('cfg-firebase');
+  if (getVal('cfg-sync') !== null)     CFG.syncEnabled = getVal('cfg-sync');
+  saveCfg();
+  document.body.classList.toggle('cb-mode', !!CFG.cbMode);
+  closeSettings();
+  toast('설정 저장됨', 'ok');
+  setStat(CFG.url ? 'ok' : 'warn', CFG.url ? '시트 연결됨' : 'URL 미설정');
+  renderMain();
+}
+
+// A2: 스냅샷 모달
+function showSnapshotsModal() {
+  const list = listSnapshots();
+  const body = document.getElementById('snapshots-list');
+  if (!list.length) {
+    body.innerHTML = '<div class="dim">스냅샷 없음 (5분 후 첫 자동 저장 발생)</div>';
+  } else {
+    body.innerHTML = list.slice().reverse().map(s => `
+      <div style="padding:8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span class="mono">${new Date(s.ts).toLocaleString('ko-KR')}</span>
+        <button class="btn btn-sm btn-secondary" onclick="restoreSnapshot(${s.ts})">복원</button>
+      </div>`).join('');
+  }
+  document.getElementById('modal-snapshots').classList.add('open');
+}
+
+// A9/A10: URL 복사
+function copyPublicURL() {
+  const u = location.origin + location.pathname + '?view=public';
+  navigator.clipboard?.writeText(u).then(() => toast('공개 뷰 URL 복사됨', 'ok')).catch(() => prompt('복사하세요', u));
+}
+function copyOverlayURL() {
+  const u = location.origin + location.pathname + `?view=overlay&match=${A.currentMatch||1}`;
+  navigator.clipboard?.writeText(u).then(() => toast('OBS 오버레이 URL 복사됨', 'ok')).catch(() => prompt('복사하세요', u));
+}
+
+// A5: 사전 확정 모달
+function showPreFinalize(matchId) {
+  const m = SCHEDULE.find(x => x.id === matchId);
+  if (!m) return;
+  const sel = A.sel[matchId] || {};
+  const pb = computeMatchPickban(m);
+  const result = A.result[matchId] || { kda:{} };
+  const body = document.getElementById('prefinalize-body');
+  let html = `<div class="pre-finalize">
+    <div class="pre-finalize-row"><strong>경기</strong><span>${m.id} — ${esc(m.redName)} vs ${esc(m.blueName)}</span></div>
+    <div class="pre-finalize-row"><strong>모드</strong><span>${pb.mode==='pickban'?`픽앤밴 (gap ${pb.gap})`:'자유픽'}</span></div>`;
+  if (pb.mode === 'pickban') {
+    const picks = A.picks[matchId] || {};
+    pb.order.forEach(({turn, team, role}) => {
+      const p = picks[turn] || {};
+      const c = CHARS.find(x => x.id === p.charId);
+      html += `<div class="pre-finalize-row"><strong>T${turn} ${role}</strong><span>${esc(team)} · ${esc(p.playerName||'?')} · ${c?c.icon+c.name:'미선택'} · 스텟 ${(p.stat||[]).join('-')}</span></div>`;
+    });
+  } else {
+    [['red',sel.redSel],['blue',sel.blueSel]].forEach(([side, names]) => {
+      (names||[]).forEach(n => {
+        const pc = (A.chars[matchId]||{})[n] || {};
+        const c = CHARS.find(x => x.id === pc.charId);
+        html += `<div class="pre-finalize-row"><strong>${side==='red'?'🔴':'🔵'} ${esc(n)}</strong><span>${c?c.icon+c.name:'미선택'} · 스텟 ${(pc.stat||[]).join('-')}</span></div>`;
+      });
+    });
+  }
+  if (result.winner) html += `<div class="pre-finalize-row"><strong>승팀</strong><span>${result.winner==='red'?m.redName:m.blueName}</span></div>`;
+  html += `</div><div class="alert alert-warn">⚠ 확정 후엔 시트로 영구 저장됩니다. 다시 한 번 확인하세요.</div>`;
+  body.innerHTML = html;
+  const btn = document.getElementById('prefinalize-confirm');
+  btn.onclick = () => { document.getElementById('modal-prefinalize').classList.remove('open'); finalizeCheckin(matchId); };
+  document.getElementById('modal-prefinalize').classList.add('open');
+}
+
+function exportJSON() {
+  const data = { state: A, cfg: CFG, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `HADO_checkin_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.json`;
+  a.click();
+  toast('JSON 내보내기 완료', 'ok');
+}
+function importJSONPrompt() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json';
+  inp.onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const d = JSON.parse(r.result);
+        if (d.state) Object.assign(A, d.state);
+        if (d.cfg) Object.assign(CFG, d.cfg);
+        saveState(); saveCfg();
+        toast('가져오기 완료', 'ok');
+        renderMain(); renderMatchBar();
+      } catch(err) { toast('JSON 파싱 실패: '+err.message, 'err'); }
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+}
+function clearAllData() {
+  if (!confirm('정말 모든 체크인 데이터를 삭제할까요? (시트 데이터는 영향 없음)')) return;
+  A.step={}; A.sel={}; A.picks={}; A.chars={}; A.done={}; A.dirty={};
+  A.lockedPb={}; A.history={}; A.result={};
+  saveState();
+  renderMain(); renderMatchBar();
+  toast('초기화됨', 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⓐ 신규 헬퍼들 (P7-P10, A1-A14)
+// ═══════════════════════════════════════════════════════════════
+const _tabId = 'tab_'+Math.random().toString(36).slice(2,10);
+const SNAPSHOT_KEY = (STORAGE_KEY||'hado_v4')+'_snapshots';
+
+// ── A14: 권한 가드 (operator/admin만 변경 가능) ──────────────
+function canEdit() { return CFG.role !== 'viewer'; }
+function canAdmin() { return CFG.role === 'admin'; }
+function requireEdit(actionLabel) {
+  if (!canEdit()) {
+    toast(`👁 뷰어 모드 — ${actionLabel||'편집'} 불가`, 'err');
+    return false;
+  }
+  return true;
+}
+
+// ── URL 파라미터 파싱 (A9 public, A10 overlay) ────────────────
+function getQueryParam(name) {
+  try { return new URL(location.href).searchParams.get(name); } catch(e) { return null; }
+}
+const VIEW_MODE = getQueryParam('view') || 'normal'; // 'normal' | 'public' | 'overlay'
+
+// ── A2: 주기적 스냅샷 회전 ─────────────────────────────────
+function takeSnapshot() {
+  try {
+    const all = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '[]');
+    const cutoff = Date.now() - (CFG.snapshotRetention || 7) * 86400000;
+    const fresh = all.filter(s => s.ts > cutoff);
+    fresh.push({ ts: Date.now(), state: A });
+    // 메모리 절약 — 같은 5분 안에 여러 번 저장되는 일 방지
+    if (fresh.length > 1 && fresh[fresh.length-1].ts - fresh[fresh.length-2].ts < 60000) {
+      fresh.splice(-2, 1);
+    }
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(fresh));
+  } catch(e) { console.warn('snapshot failed', e); }
+}
+function listSnapshots() {
+  try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function restoreSnapshot(ts) {
+  const all = listSnapshots();
+  const snap = all.find(s => s.ts === ts);
+  if (!snap) { toast('스냅샷을 찾을 수 없음', 'err'); return; }
+  if (!confirm(`${new Date(ts).toLocaleString('ko-KR')} 시점으로 복원하시겠습니까?\n현재 상태는 사라집니다 (자동 백업되지만).`)) return;
+  takeSnapshot(); // 복원 직전 상태도 백업
+  Object.assign(A, snap.state);
+  saveState();
+  toast('스냅샷 복원 완료', 'ok');
+  renderMain(); renderMatchBar();
+}
+
+// ── A3: 다른 탭 충돌 감지 ──────────────────────────────────
+function setupConflictDetection() {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== STORAGE_KEY+'_lastWrite' || !e.newValue) return;
+    const [, otherTab] = e.newValue.split('|');
+    if (otherTab === _tabId) return; // 자기 자신은 무시
+    toast('⚠ 다른 탭에서 변경 감지됨 — 새로고침 권장', 'err');
+    // 최신 데이터로 자동 reload하지는 않음 (현재 작업 손실 방지) — 사용자 선택
+  });
+}
+
+// ── A4: 매치 검색 + 다음 미체크인으로 점프 ─────────────────
+let _matchSearchQuery = '';
+function setMatchSearch(q) { _matchSearchQuery = (q||'').trim().toLowerCase(); renderMatchBar(); }
+function jumpToNextUndone() {
+  const cur = SCHEDULE.findIndex(m => m.id === A.currentMatch);
+  for (let i = 1; i <= SCHEDULE.length; i++) {
+    const idx = (cur + i) % SCHEDULE.length;
+    const m = SCHEDULE[idx];
+    if (!A.done[m.id]) {
+      selectMatch(m.id);
+      toast(`다음 미체크인 → 경기 ${m.id}`, 'info');
+      return;
+    }
+  }
+  toast('모든 경기 체크인 완료', 'ok');
+}
+
+// ── A11: Discord webhook 게시 ──────────────────────────────
+async function postToDiscord(matchId) {
+  if (!CFG.discordUrl) return;
+  const m = SCHEDULE.find(x => x.id === matchId);
+  if (!m) return;
+  const pb = computeMatchPickban(m);
+  const result = A.result[matchId];
+  const lines = [
+    `**경기 ${m.id}** — ${m.redName} vs ${m.blueName}`,
+    `모드: ${pb.mode==='pickban'?`픽앤밴 (gap ${pb.gap||'?'})`:'자유픽'}`,
+  ];
+  if (pb.mode === 'pickban') {
+    lines.push(`픽 순서: ${pb.order.map(o => `T${o.turn} ${o.team}`).join(' · ')}`);
+  }
+  if (result?.winner) {
+    lines.push(`승팀: **${result.winner==='red'?m.redName:m.blueName}**`);
+  }
+  try {
+    await fetch(CFG.discordUrl, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ content: lines.join('\n') }),
+    });
+  } catch(e) {
+    console.warn('Discord webhook failed', e);
+  }
+}
+
+// ── P10: Firebase Realtime DB 기본 동기화 (REST 사용, SDK 불요) ─
+async function syncToFirebase(matchId) {
+  if (!CFG.syncEnabled || !CFG.firebaseUrl) return;
+  try {
+    const url = CFG.firebaseUrl.replace(/\/$/, '') + `/checkin/match_${matchId}.json`;
+    const payload = {
+      sel: A.sel[matchId], picks: A.picks[matchId],
+      chars: A.chars[matchId], result: A.result[matchId],
+      lockedPb: A.lockedPb[matchId], done: A.done[matchId],
+      _updatedAt: Date.now(), _updatedBy: _tabId,
+    };
+    await fetch(url, { method:'PUT', body: JSON.stringify(payload) });
+  } catch(e) { console.warn('firebase sync failed', e); }
+}
+async function pullFromFirebase() {
+  if (!CFG.syncEnabled || !CFG.firebaseUrl) return;
+  try {
+    const url = CFG.firebaseUrl.replace(/\/$/, '') + '/checkin.json';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json() || {};
+    let changed = false;
+    for (const key in data) {
+      const m = key.match(/^match_(\d+)$/); if (!m) continue;
+      const matchId = parseInt(m[1]);
+      const remote = data[key];
+      // 자기 탭이 보낸 건 스킵
+      if (remote._updatedBy === _tabId) continue;
+      // 단순한 머지 (충돌 시 원격 우선)
+      if (remote.sel)      A.sel[matchId]      = remote.sel;
+      if (remote.picks)    A.picks[matchId]    = remote.picks;
+      if (remote.chars)    A.chars[matchId]    = remote.chars;
+      if (remote.result)   A.result[matchId]   = remote.result;
+      if (remote.lockedPb) A.lockedPb[matchId] = remote.lockedPb;
+      if (remote.done)     A.done[matchId]     = remote.done;
+      changed = true;
+    }
+    if (changed) { saveState(); renderMain(); renderMatchBar(); }
+  } catch(e) { console.warn('firebase pull failed', e); }
+}
+
+// ── A12: 차트 헬퍼 (Chart.js 글로벌 Chart 객체 사용) ──────
+let _activeCharts = [];
+function destroyAllCharts() { _activeCharts.forEach(c => { try{c.destroy()}catch(e){} }); _activeCharts = []; }
+function makeChart(canvasId, type, data, options) {
+  if (typeof Chart === 'undefined') return null;
+  const el = document.getElementById(canvasId);
+  if (!el) return null;
+  const c = new Chart(el, { type, data, options: Object.assign({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color:'#c8d8f0' } } },
+    scales: type==='bar'||type==='line' ? {
+      x: { ticks: { color:'#6a90b8' }, grid: { color:'#1c3a60' } },
+      y: { ticks: { color:'#6a90b8' }, grid: { color:'#1c3a60' } },
+    } : {},
+  }, options || {}) });
+  _activeCharts.push(c);
+  return c;
+}
+
+// ── A13: 인쇄 (브라우저 print 다이얼로그 호출) ─────────────
+function printReport() {
+  goTab('summary');
+  setTimeout(() => window.print(), 300);
+}
+
+// ── P7: CSV 가져오기 (선수 명단/경기 일정) ──────────────────
+function parseCSV(text) {
+  // 단순 파서 (RFC4180 풀 구현 X, 일반 시트에 충분)
+  const rows = [];
+  text = text.replace(/\r\n/g, '\n');
+  text.split('\n').forEach(line => {
+    if (!line.trim()) return;
+    const cells = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { cells.push(cur); cur = ''; }
+      else cur += c;
+    }
+    cells.push(cur);
+    rows.push(cells.map(c => c.trim()));
+  });
+  return rows;
+}
+function importPlayersCSV() {
+  if (!requireEdit('선수 CSV 가져오기')) return;
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept='.csv,.tsv,text/csv';
+  inp.onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const rows = parseCSV(r.result);
+        if (rows.length < 2) throw new Error('데이터 행 없음');
+        const header = rows[0].map(s => s.toLowerCase());
+        // 컬럼 매핑 (한국어/영어 모두 허용)
+        const idx = (...keys) => {
+          for (const k of keys) {
+            const i = header.findIndex(h => h === k || h.includes(k));
+            if (i !== -1) return i;
+          }
+          return -1;
+        };
+        const cols = {
+          name:     idx('name','이름','선수명'),
+          nickname: idx('nickname','닉네임'),
+          number:   idx('number','번호','넘버'),
+          team:     idx('team','팀','팀명'),
+          grade:    idx('grade','등급'),
+          club:     idx('club','클럽'),
+          memberId: idx('memberid','member_id','id','아이디'),
+        };
+        const newPlayers = rows.slice(1).filter(r => r[cols.name]).map(r => ({
+          memberId: cols.memberId>=0 ? r[cols.memberId] : '',
+          name:     r[cols.name],
+          nickname: cols.nickname>=0 ? r[cols.nickname] : '',
+          number:   cols.number>=0 ? parseInt(r[cols.number]) : 0,
+          team:     cols.team>=0 ? r[cols.team] : '',
+          grade:    cols.grade>=0 ? r[cols.grade] : '',
+          club:     cols.club>=0 ? r[cols.club] : '',
+        }));
+        if (!confirm(`${newPlayers.length}명의 선수로 교체하시겠습니까? (현재 ${PLAYERS.length}명)`)) return;
+        PLAYERS.length = 0; PLAYERS.push(...newPlayers);
+        try { localStorage.setItem('hado_players_override', JSON.stringify(newPlayers)); } catch(e){}
+        toast(`✓ ${newPlayers.length}명 임포트 완료 (다음 실행 시 자동 로드)`, 'ok');
+        renderMain(); renderMatchBar();
+      } catch(err) { toast('CSV 파싱 실패: '+err.message, 'err'); }
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+}
+function importScheduleCSV() {
+  if (!requireEdit('경기 일정 CSV 가져오기')) return;
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept='.csv,.tsv,text/csv';
+  inp.onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const rows = parseCSV(r.result);
+        if (rows.length < 2) throw new Error('데이터 행 없음');
+        const header = rows[0].map(s => s.toLowerCase());
+        const idx = (k) => header.findIndex(h => h === k || h.includes(k));
+        const cols = { id:idx('id'), label:idx('label'), red:idx('red'), blue:idx('blue'), redOrder:idx('red_order'), blueOrder:idx('blue_order') };
+        const newSchedule = rows.slice(1).filter(r => r[cols.id]).map(r => ({
+          id:        parseInt(r[cols.id]),
+          label:     cols.label>=0 ? r[cols.label] : `${r[cols.id]}경기`,
+          redName:   cols.red>=0 ? r[cols.red] : '',
+          blueName:  cols.blue>=0 ? r[cols.blue] : '',
+          redOrder:  cols.redOrder>=0 ? parseInt(r[cols.redOrder]) : 0,
+          blueOrder: cols.blueOrder>=0 ? parseInt(r[cols.blueOrder]) : 0,
+        }));
+        if (!confirm(`${newSchedule.length}경기로 교체하시겠습니까?`)) return;
+        SCHEDULE.length = 0; SCHEDULE.push(...newSchedule);
+        try { localStorage.setItem('hado_schedule_override', JSON.stringify(newSchedule)); } catch(e){}
+        toast(`✓ ${newSchedule.length}경기 임포트 완료`, 'ok');
+        renderMain(); renderMatchBar();
+      } catch(err) { toast('CSV 파싱 실패: '+err.message, 'err'); }
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+}
+
+// ── P9: 경기 결과 / KDA 입력 ───────────────────────────────
+function setMatchWinner(matchId, side) {
+  if (!requireEdit('결과 입력')) return;
+  if (!A.result[matchId]) A.result[matchId] = { kda: {}, ts: Date.now() };
+  pushHistory(matchId, `결과: ${side==='red'?'레드':'블루'}팀 승`);
+  A.result[matchId].winner = side;
+  A.result[matchId].ts = Date.now();
+  markDirty(matchId);
+  postToDiscord(matchId);
+  syncToFirebase(matchId);
+  renderMain();
+}
+function setMatchKDA(matchId, playerName, field, value) {
+  if (!requireEdit('KDA 입력')) return;
+  if (!A.result[matchId]) A.result[matchId] = { kda: {}, ts: Date.now() };
+  if (!A.result[matchId].kda) A.result[matchId].kda = {};
+  if (!A.result[matchId].kda[playerName]) A.result[matchId].kda[playerName] = { k:0, d:0, a:0 };
+  const v = parseInt(value)||0;
+  A.result[matchId].kda[playerName][field] = v;
+  markDirty(matchId);
+  syncToFirebase(matchId);
+}
+function setMatchNotes(matchId, notes) {
+  if (!requireEdit('메모')) return;
+  if (!A.result[matchId]) A.result[matchId] = { kda: {}, ts: Date.now() };
+  A.result[matchId].notes = notes;
+  markDirty(matchId);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ④ Apps Script POST (저장만 사용)
+// ═══════════════════════════════════════════════════════════════
+async function postToSheet(payload) {
+  if (!CFG.url) throw new Error('Apps Script URL 미설정');
+  // text/plain으로 보내야 CORS preflight 안 걸림 (Apps Script 표준)
+  const res = await fetch(CFG.url, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  return res.json();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⑤ 자동 저장 (디바운스)
+// ═══════════════════════════════════════════════════════════════
+const _saveTimers = {};
+function markDirty(matchId) {
+  A.dirty[matchId] = true;
+  saveState();
+  if (CFG.autosave && CFG.url) {
+    if (_saveTimers[matchId]) clearTimeout(_saveTimers[matchId]);
+    _saveTimers[matchId] = setTimeout(() => {
+      saveMatchToSheet(matchId, false);
+    }, 1000);
+  }
+}
+
+async function saveMatchToSheet(matchId, isFinal) {
+  const match = SCHEDULE.find(m => m.id === matchId);
+  if (!match) return;
+  const payload = buildMatchPayload(matchId, isFinal);
+  if (!payload.picks.length) return; // 아무 입력 없음 → 스킵
+
+  if (!CFG.url) {
+    toast('⚠ Apps Script URL이 없어 저장하지 못했습니다 (⚙ 설정에서 입력)', 'err');
+    return;
+  }
+
+  setStat('busy', `경기${matchId} 저장 중`);
+  try {
+    const res = await postToSheet({ action:'saveCheckin', ...payload });
+    if (res.status !== 'ok') throw new Error(res.msg || '서버 오류');
+    A.dirty[matchId] = false;
+    if (isFinal) A.done[matchId] = true;
+    saveState();
+    setStat('ok', `경기${matchId} 저장됨 (${res.saved||payload.picks.length}행)`);
+    if (isFinal) {
+      toast(`✓ 경기 ${matchId} 체크인 확정! (${res.saved||payload.picks.length}행 저장)`, 'ok');
+    } else {
+      toast(`경기 ${matchId} 자동 저장 (${res.saved||payload.picks.length}행)`, 'ok');
+    }
+    renderMatchBar();
+    if (A.tab === 'checkin') renderMain();
+  } catch(e) {
+    setStat('err', '저장 실패');
+    toast('저장 실패: ' + e.message, 'err');
+  }
+}
+
+function buildMatchPayload(matchId, isFinal) {
+  const match = SCHEDULE.find(m => m.id === matchId);
+  const sel = A.sel[matchId] || {};
+  // 잠긴 모드 우선 사용 (체크인 시점의 모드와 일치 보장)
+  const pb = computeMatchPickban(match);
+
+  let picks = [];
+  if (pb.mode === 'pickban') {
+    const raw = A.picks[matchId] || {};
+    picks = pb.order.map(({ turn, side, team, role }) => {
+      const p = raw[turn] || {};
+      const player = PLAYERS.find(x => x.name === p.playerName) || {};
+      return {
+        turn,
+        side: side === 'low' ? pb.lowSide : pb.highSide,
+        team,
+        playerName: p.playerName || '',
+        nickname:   player.nickname || '',
+        grade:      player.grade || '',
+        charId:     p.charId || '',
+        character:  CHARS.find(c => c.id === p.charId)?.name || '',
+        atk: p.stat?.[0] || 0, def: p.stat?.[1] || 0,
+        spd: p.stat?.[2] || 0, shd: p.stat?.[3] || 0,
+        role,
+      };
+    }).filter(x => x.playerName || x.charId);
+  } else {
+    const allPl = [
+      ...(sel.redSel || []).map(n => ({ n, side:'red', team:match.redName })),
+      ...(sel.blueSel|| []).map(n => ({ n, side:'blue',team:match.blueName })),
+    ];
+    picks = allPl.map(({ n, side, team }, i) => {
+      const player = PLAYERS.find(p => p.name === n) || {};
+      const pc = (A.chars[matchId] || {})[n] || {};
+      return {
+        turn: i+1, side, team,
+        playerName: n,
+        nickname: player.nickname || '',
+        grade:    player.grade || '',
+        charId:   pc.charId || '',
+        character: CHARS.find(c => c.id === pc.charId)?.name || '',
+        atk: pc.stat?.[0] || 0, def: pc.stat?.[1] || 0,
+        spd: pc.stat?.[2] || 0, shd: pc.stat?.[3] || 0,
+        role: '',
+      };
+    });
+  }
+  return {
+    matchId,
+    matchLabel: match.label,
+    tournament: '김해 리저널',
+    round:      match.round || '',
+    redTeam:    match.redName,
+    blueTeam:   match.blueName,
+    pickMode:   pb.mode === 'pickban' ? '픽앤밴' : '자유픽',
+    isFinal:    !!isFinal,
+    timestamp:  new Date().toISOString(),
+    result:     A.result[matchId] || {},
+    picks,
+  };
+  saveMatchToSheet(A.currentMatch, false);
+}
+
+// 강제 저장 — 모든 dirty/done 경기
+async function forceSaveAll() {
+  if (!CFG.url) {
+    toast('⚙ 설정에서 Apps Script URL을 먼저 입력하세요', 'err');
+    openSettings();
+    return;
+  }
+  const targets = SCHEDULE.filter(m => {
+    const sel = A.sel[m.id];
+    const hasSel = sel && (sel.redSel?.length || sel.blueSel?.length);
+    return hasSel || A.picks[m.id] || A.chars[m.id];
+  });
+  if (!targets.length) { toast('저장할 데이터 없음', 'info'); return; }
+
+  setStat('busy', `전체 저장 (${targets.length}경기)`);
+  let ok = 0, fail = 0;
+  for (const m of targets) {
+    try {
+      const payload = buildMatchPayload(m.id, !!A.done[m.id]);
+      if (!payload.picks.length) continue;
+      const res = await postToSheet({ action:'saveCheckin', ...payload });
+      if (res.status === 'ok') { ok++; A.dirty[m.id] = false; }
+      else fail++;
+    } catch(e) { fail++; }
+  }
+  saveState();
+  setStat(fail ? 'err' : 'ok', `전체 저장: ${ok}성공 / ${fail}실패`);
+  toast(`전체 저장 완료: ${ok}성공 / ${fail}실패`, fail ? 'err' : 'ok');
+  renderMatchBar();
+  if (A.tab !== 'checkin') renderMain();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⑥ 픽앤밴 모드 판단 (3티어 시스템: 고/중/저)
+//   기본 룰: 모든 선수가 같은 등급이면 그 등급의 티어,
+//            등급이 섞여 있으면 가장 강한 등급보다 한 단계 낮은 티어.
+//   HIGH 특수 룰: 동티어 매치 없이 항상 1티어 차이 발생.
+//     · 상대가 저티어(프리루키 only) → HIGH = 중티어 (한 단계 위)
+//     · 그 외 → HIGH = 상대 티어 + 1 (한 단계 아래)
+//   예) ARC(어드밴스+어드밴스+루키) → 베스트+1단계 = 중티어
+//       FC COCO(프리루키 only)      → 저티어 그대로
+// ═══════════════════════════════════════════════════════════════
+function getPickBanMode(redPs, bluePs, redName, blueName) {
+  // 등급 → 티어 매핑 (1=고티어/어드밴스, 2=중티어/루키, 3=저티어/프리루키)
+  const GRADE_TO_TIER = { '어드밴스':1, 'WX':1, '루키':2, '프리루키':3 };
+  const TIER_LABEL    = { 1:'고티어', 2:'중티어', 3:'저티어' };
+  const TIER_DEFAULT_GRADE = { 1:'어드밴스', 2:'루키', 3:'프리루키' };
+
+  // 기본 티어 = 단일 등급 팀이면 그 등급, 혼합 팀이면 베스트보다 한 단계 낮은 티어
+  function rawTeamTier(players) {
+    const tiers = players.map(p => GRADE_TO_TIER[p.grade]).filter(t => t !== undefined);
+    if (!tiers.length) return null;
+    const best  = Math.min(...tiers);
+    const worst = Math.max(...tiers);
+    return best === worst ? best : Math.min(best + 1, 3);
+  }
+
+  // ★ 팀 코드 기반 티어 고정 규칙
+  // A1·A2 = 어드밴스급(고티어1), R1·R2 = 루키급(중티어2), P1~P4 = 프리루키급(저티어3)
+  // P팀은 상대가 누구든 항상 저티어(3) 고정
+  // TEAM_META의 no-same-tier는 P팀에는 적용하지 않음
+  function getGroupCode(teamName) {
+    // groupDrawMap에서 코드 역조회
+    if (typeof groupDrawMap !== 'undefined') {
+      for (const [code, name] of Object.entries(groupDrawMap)) {
+        if (name === teamName) return code;
+      }
+    }
+    return '';
+  }
+
+  function isLowTierTeam(teamName) {
+    const code = getGroupCode(teamName);
+    return code.startsWith('P');  // P1, P2, P3, P4
+  }
+
+  function isHighTierTeam(teamName) {
+    const code = getGroupCode(teamName);
+    return code.startsWith('A');  // A1, A2
+  }
+
+  // 팀 메타 오버라이드 — P팀은 항상 3 고정, 나머지는 기존 로직
+  function applyTierOverride(myName, myTier, oppTier) {
+    // P팀은 항상 저티어(3) 고정 — 오버라이드 불필요
+    if (isLowTierTeam(myName)) return 3;
+
+    const rule = (typeof TEAM_META !== 'undefined' && TEAM_META[myName])
+                 ? TEAM_META[myName].tierOverride : null;
+    if (!rule || oppTier == null) return myTier;
+    if (rule === 'no-same-tier') {
+      // 상대가 저티어(3)이면 중티어(2), 그 외엔 상대+1
+      return oppTier === 3 ? 2 : Math.min(oppTier + 1, 3);
+    }
+    return myTier;
+  }
+
+  // 등급 라벨: 해당 티어의 실제 선수 등급, 없으면 기본 등급
+  function gradeLabelForTier(players, tier) {
+    if (tier == null) return '';
+    const p = players.find(x => GRADE_TO_TIER[x.grade] === tier);
+    return p ? p.grade : (TIER_DEFAULT_GRADE[tier] || '');
+  }
+
+  // 등급 분포 요약 → 라쇼날
+  function rationaleFor(name, players, rawT, finalT, oppRawT) {
+    const grades = players.map(p => p.grade).filter(g => GRADE_TO_TIER[g] !== undefined);
+    const uniq = [...new Set(grades)];
+    if (!uniq.length) return `${name}: 등급 정보 없음`;
+    if (isLowTierTeam(name)) return `${name}: P팀 — 저티어(프리루키) 고정`;
+    if (rawT !== finalT) {
+      const dir = finalT > oppRawT ? '아래' : '위';
+      return `${name}: 특수 룰 — 동티어 매치 방지를 위해 상대(${TIER_LABEL[oppRawT]||'?'})보다 한 단계 ${dir}로 조정 → ${TIER_LABEL[finalT]}`;
+    }
+    if (uniq.length === 1) return `${name}: 전원 ${uniq[0]} → ${TIER_LABEL[finalT]}`;
+    const bestG = uniq.reduce((b,g) => GRADE_TO_TIER[g] < GRADE_TO_TIER[b] ? g : b);
+    return `${name}: 혼합 등급(${uniq.join('+')}) → 베스트 ${bestG}에서 한 단계 낮춤 → ${TIER_LABEL[finalT]}`;
+  }
+
+  const rRaw = rawTeamTier(redPs);
+  const bRaw = rawTeamTier(bluePs);
+  // 팀 메타 오버라이드: 상대 raw 티어 기준으로 결정
+  const rTier = applyTierOverride(redName,  rRaw, bRaw);
+  const bTier = applyTierOverride(blueName, bRaw, rRaw);
+
+  const redRationale  = rationaleFor(redName,  redPs,  rRaw, rTier, bRaw);
+  const blueRationale = rationaleFor(blueName, bluePs, bRaw, bTier, rRaw);
+  const redGrade      = gradeLabelForTier(redPs,  rTier);
+  const blueGrade     = gradeLabelForTier(bluePs, bTier);
+  const redTierLabel  = TIER_LABEL[rTier]  || '';
+  const blueTierLabel = TIER_LABEL[bTier]  || '';
+
+  // 같은 티어 → 자유픽
+  if (rTier == null || bTier == null || rTier === bTier) {
+    return {
+      mode:'free',
+      redTier: rTier, blueTier: bTier,
+      redTierLabel, blueTierLabel,
+      redGrade, blueGrade,
+      redRationale, blueRationale,
+    };
+  }
+
+  const lowSide  = rTier > bTier ? 'red' : 'blue';
+  const highSide = rTier > bTier ? 'blue': 'red';
+  const lowName  = lowSide  === 'red' ? redName : blueName;
+  const highName = highSide === 'red' ? redName : blueName;
+  const lowPs    = lowSide  === 'red' ? redPs  : bluePs;
+  const highPs   = highSide === 'red' ? redPs  : bluePs;
+  const lowTierN  = Math.max(rTier, bTier);
+  const highTierN = Math.min(rTier, bTier);
+  const lowTier   = TIER_LABEL[lowTierN] || '';
+  const highTier  = TIER_LABEL[highTierN] || '';
+  const lowGrade  = gradeLabelForTier(lowPs,  lowTierN);
+  const highGrade = gradeLabelForTier(highPs, highTierN);
+  const gap       = lowTierN - highTierN; // 1=1단계차, 2=2단계차
+
+  let order;
+  if (gap === 1) {
+    // 1단계 차이 (고vs중, 중vs저): 약한 팀 선픽 → 강한 팀 후픽 교대 (6턴)
+    order = [1,2,3,4,5,6].map(t => ({
+      turn: t,
+      side: t % 2 === 1 ? 'low' : 'high',
+      team: t % 2 === 1 ? lowName : highName,
+      role: t % 2 === 1 ? '선픽' : '후픽',
+    }));
+  } else {
+    // 2단계 차이 (고vs저 = 어드밴스vs프리루키):
+    // 약한 팀(P팀)이 3캐릭 모두 선픽 → 강한 팀이 후픽
+    order = [
+      { turn:1, side:'low',  team:lowName,  role:'선픽 1' },
+      { turn:2, side:'low',  team:lowName,  role:'선픽 2' },
+      { turn:3, side:'low',  team:lowName,  role:'선픽 3' },
+      { turn:4, side:'high', team:highName, role:'후픽 1' },
+      { turn:5, side:'high', team:highName, role:'후픽 2' },
+      { turn:6, side:'high', team:highName, role:'후픽 3' },
+    ];
+  }
+
+  return {
+    mode:'pickban',
+    lowSide, highSide,
+    lowName, highName,
+    lowGrade, highGrade,
+    lowTier, highTier,
+    gap,
+    order,
+    redTier: rTier, blueTier: bTier,
+    redTierLabel, blueTierLabel,
+    redGrade, blueGrade,
+    redRationale, blueRationale,
+  };
+}
+  const bRaw = rawTeamTier(bluePs);
+  // 팀 메타 오버라이드: 상대 raw 티어 기준으로 결정
+  const rTier = applyTierOverride(redName,  rRaw, bRaw);
+  const bTier = applyTierOverride(blueName, bRaw, rRaw);
+
+  const redRationale  = rationaleFor(redName,  redPs,  rRaw, rTier, bRaw);
+  const blueRationale = rationaleFor(blueName, bluePs, bRaw, bTier, rRaw);
+  const redGrade      = gradeLabelForTier(redPs,  rTier);
+  const blueGrade     = gradeLabelForTier(bluePs, bTier);
+  const redTierLabel  = TIER_LABEL[rTier]  || '';
+  const blueTierLabel = TIER_LABEL[bTier]  || '';
+
+  // 같은 티어 → 자유픽 (선픽/후픽 제한 없음). HIGH 룰로 인해 HIGH 매치는 항상 다름.
+  if (rTier == null || bTier == null || rTier === bTier) {
+    return {
+      mode:'free',
+      redTier: rTier, blueTier: bTier,
+      redTierLabel, blueTierLabel,
+      redGrade, blueGrade,
+      redRationale, blueRationale,
+    };
+  }
+
+  const lowSide  = rTier > bTier ? 'red' : 'blue';   // 숫자 큰 쪽 = 약한 티어
+  const highSide = rTier > bTier ? 'blue': 'red';
+  const lowName  = lowSide  === 'red' ? redName : blueName;
+  const highName = highSide === 'red' ? redName : blueName;
+  const lowPs    = lowSide  === 'red' ? redPs  : bluePs;
+  const highPs   = highSide === 'red' ? redPs  : bluePs;
+  const lowTierN  = Math.max(rTier, bTier);
+  const highTierN = Math.min(rTier, bTier);
+  const lowTier   = TIER_LABEL[lowTierN] || '';
+  const highTier  = TIER_LABEL[highTierN] || '';
+  const lowGrade  = gradeLabelForTier(lowPs,  lowTierN);
+  const highGrade = gradeLabelForTier(highPs, highTierN);
+  const gap       = lowTierN - highTierN; // 1 또는 2
+
+  let order;
+  if (gap === 1) {
+    // 한 티어 차이: 약한 티어 선픽 → 강한 티어 후픽 교대 (6턴)
+    order = [1,2,3,4,5,6].map(t => ({
+      turn: t,
+      side: t % 2 === 1 ? 'low' : 'high',
+      team: t % 2 === 1 ? lowName : highName,
+      role: t % 2 === 1 ? '선픽' : '후픽',
+    }));
+  } else {
+    // 두 티어 차이: 약한 티어가 3캐릭 모두 선픽 → 강한 티어가 남은 캐릭터 후픽
+    order = [
+      { turn:1, side:'low',  team:lowName,  role:'선픽 1' },
+      { turn:2, side:'low',  team:lowName,  role:'선픽 2' },
+      { turn:3, side:'low',  team:lowName,  role:'선픽 3' },
+      { turn:4, side:'high', team:highName, role:'후픽 1' },
+      { turn:5, side:'high', team:highName, role:'후픽 2' },
+      { turn:6, side:'high', team:highName, role:'후픽 3' },
+    ];
+  }
+
+  return {
+    mode:'pickban',
+    lowSide, highSide,
+    lowName, highName,
+    lowGrade, highGrade,
+    lowTier, highTier,
+    gap,
+    order,
+    // 추가: 양 팀 정보 + 라쇼날
+    redTier: rTier, blueTier: bTier,
+    redTierLabel, blueTierLabel,
+    redGrade, blueGrade,
+    redRationale, blueRationale,
+  };
+}
+
+// 출전 확정 3명이 있으면 그 3명으로, 아니면 팀 로스터 전체로 픽앤밴 모드 계산
+// 잠긴 모드(A.lockedPb)가 있으면 잠금 시점의 스냅샷을 그대로 반환
+function computeMatchPickban(match) {
+  if (A.lockedPb && A.lockedPb[match.id]) {
+    return { ...A.lockedPb[match.id], locked: true };
+  }
+  const sel = A.sel[match.id] || {};
+  const redRoster  = PLAYERS.filter(p => p.team === match.redName);
+  const blueRoster = PLAYERS.filter(p => p.team === match.blueName);
+  const redSelObjs  = (sel.redSel  || []).map(n => PLAYERS.find(p => p.name === n)).filter(Boolean);
+  const blueSelObjs = (sel.blueSel || []).map(n => PLAYERS.find(p => p.name === n)).filter(Boolean);
+  const redPs  = redSelObjs.length  === 3 ? redSelObjs  : redRoster;
+  const bluePs = blueSelObjs.length === 3 ? blueSelObjs : blueRoster;
+  const pb = getPickBanMode(redPs, bluePs, match.redName, match.blueName);
+  pb.basedOnSelection = (redSelObjs.length === 3 && blueSelObjs.length === 3);
+  pb.locked = false;
+  return pb;
+}
+
+// 픽앤밴 모드 잠금 — 첫 픽 시점에 호출되어 모드 스냅샷 저장
+function lockPickbanMode(matchId) {
+  if (!A.lockedPb) A.lockedPb = {};
+  if (A.lockedPb[matchId]) return; // 이미 잠겨있음
+  const match = SCHEDULE.find(m => m.id === matchId);
+  if (!match) return;
+  // 잠금 시점에 현재 모드 계산 (A.lockedPb 비어있으니 fresh compute)
+  const pb = computeMatchPickban(match);
+  pb.lockedAt = Date.now();
+  // selectionSnap: 잠금 당시 출전 선수 (변경 추적용)
+  const sel = A.sel[matchId] || {};
+  pb.selectionSnap = { redSel: [...(sel.redSel||[])], blueSel: [...(sel.blueSel||[])] };
+  delete pb.locked; // 저장에는 locked 플래그 빼고, computeMatchPickban이 다시 붙여줌
+  A.lockedPb[matchId] = pb;
+  saveState();
+}
+
+// 픽앤밴 모드 잠금 해제 (운영진 명시적 액션)
+function unlockPickbanMode(matchId) {
+  if (!A.lockedPb || !A.lockedPb[matchId]) return;
+  if (!confirm('픽앤밴 모드 잠금을 해제하시겠습니까?\n현재 출전 선수 기준으로 모드가 다시 계산됩니다. 기존 픽 데이터가 잘못 매칭될 수 있으니 주의하세요.')) return;
+  delete A.lockedPb[matchId];
+  markDirty(matchId);
+  toast('픽앤밴 모드 잠금 해제됨', 'warn');
+  renderMain();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⑦ 탭 / 매치바 / 메인 렌더
+// ═══════════════════════════════════════════════════════════════
+function goTab(tab) {
+  A.tab = tab;
+  ['checkin','schedule','summary','roster'].forEach(t => {
+    document.getElementById('nav-'+t)?.classList.toggle('active', t===tab);
+  });
+  document.getElementById('match-bar').style.display = tab==='checkin' ? 'flex' : 'none';
+  renderMain();
+}
+
+function renderMatchBar() {
+  const bar = document.getElementById('match-bar');
+  const ROUND_GROUPS = [
+    { label:'1라운드', ids:[1,2,3,4] },
+    { label:'챌린저',  ids:[5,6] },
+    { label:'위너',    ids:[7,8] },
+    { label:'4강',     ids:[9,10,11,12,13,14] },
+    { label:'3·4위',   ids:[15,16,17] },
+    { label:'결승',    ids:[18,19,20] },
+  ];
+
+  const gdDone = Object.keys(groupDrawMap).length >= 8;
+  let html = `<input type="search" class="match-search" placeholder="🔍 팀명/번호…" value="${esc(_matchSearchQuery)}" oninput="setMatchSearch(this.value)">
+  <button class="btn btn-sm btn-secondary" onclick="jumpToNextUndone()" title="다음 미체크인 경기로">⏭ 다음</button>
+  <button class="btn btn-sm ${gdDone?'btn-secondary':'btn-primary'}" onclick="openGroupDrawModal()" title="조배정 설정">🎲 조배정${gdDone?' ✓':''}</button>
+  <span style="width:4px"></span>`;
+
+  for (const rg of ROUND_GROUPS) {
+    const visible = SCHEDULE.filter(m => rg.ids.includes(m.id)).filter(m => {
+      if (!_matchSearchQuery) return true;
+      const q = _matchSearchQuery.toLowerCase();
+      return String(m.id).includes(q)||(m.redName||'').toLowerCase().includes(q)||(m.blueName||'').toLowerCase().includes(q);
+    });
+    if (!visible.length) continue;
+    html += `<div class="round-line"></div><span class="round-sep">${rg.label}</span>`;
+    visible.forEach(m => {
+      const done   = A.done[m.id];
+      const dirty  = A.dirty[m.id];
+      const active = A.currentMatch === m.id;
+      const isPB   = computeMatchPickban(m).mode === 'pickban';
+      const cls = ['mchip',active?'active':'',done&&!active?'done':'',dirty&&!active?'dirty':'',isPB?'pb':''].filter(Boolean).join(' ');
+      const teamInfo = `${esc(m.redName)} vs ${esc(m.blueName)}`;
+      html += `<div class="${cls}" onclick="selectMatch(${m.id})" title="${teamInfo}">${m.id}</div>`;
+    });
+  }
+  bar.innerHTML = html;
+}
+
+function selectMatch(id) {
+  A.currentMatch = id;
+  saveState();
+  renderMatchBar();
+  renderMain();
+}
+
+function renderMain() {
+  const el = document.getElementById('main');
+  el.className = 'main fade-in';
+  destroyAllCharts(); // A12: 이전 차트 정리
+  // A10: OBS 오버레이 모드 우선 처리
+  if (VIEW_MODE === 'overlay') { el.innerHTML = renderOverlay(); return; }
+  if (A.tab === 'checkin')  { renderMatchBar(); el.innerHTML = renderCheckin(); }
+  else if (A.tab === 'schedule') el.innerHTML = renderSchedule();
+  else if (A.tab === 'summary')  { el.innerHTML = renderSummary(); setTimeout(renderSummaryCharts, 50); }
+  else if (A.tab === 'roster')   el.innerHTML = renderRoster();
+}
+
+// A10: OBS 오버레이 (스트리밍용) — 매치 1개를 큰 화면에 표시
+function renderOverlay() {
+  const matchId = parseInt(getQueryParam('match')) || A.currentMatch || 1;
+  const match = SCHEDULE.find(m => m.id === matchId);
+  if (!match) return '<div class="obs-overlay"><div class="obs-vs">경기 미선택</div></div>';
+  const pb = computeMatchPickban(match);
+  const picks = A.picks[matchId] || {};
+  const sel   = A.sel[matchId] || {};
+  let pickHTML = '';
+  if (pb.mode === 'pickban') {
+    pickHTML = pb.order.map(({turn, side, team}) => {
+      const p = picks[turn] || {};
+      const c = CHARS.find(x => x.id === p.charId);
+      return `<div class="obs-turn ${side==='low'?'low':'high'}">
+        <div class="obs-turn-num">T${turn} · ${esc(team)}</div>
+        <div class="obs-turn-char">${c ? c.icon+' '+c.name : '—'}</div>
+        <div class="obs-turn-name">${esc(p.playerName||'대기')}</div>
+      </div>`;
+    }).join('');
+  } else {
+    const all = [...(sel.redSel||[]).map(n=>({n,s:'red'})), ...(sel.blueSel||[]).map(n=>({n,s:'blue'}))];
+    pickHTML = all.map(({n,s}) => {
+      const pc = (A.chars[matchId]||{})[n] || {};
+      const c = CHARS.find(x => x.id === pc.charId);
+      return `<div class="obs-turn ${s==='red'?'low':'high'}">
+        <div class="obs-turn-num">${s==='red'?'🔴':'🔵'} ${esc(n)}</div>
+        <div class="obs-turn-char">${c ? c.icon+' '+c.name : '—'}</div>
+        <div class="obs-turn-name">${esc(pc.stat ? '스텟 '+pc.stat.join('-') : '대기')}</div>
+      </div>`;
+    }).join('');
+  }
+  return `<div class="obs-overlay">
+    <div class="obs-vs">
+      <div class="obs-team red">${esc(match.redName)}</div>
+      <div class="obs-vs-mid">VS · 경기 ${match.id}</div>
+      <div class="obs-team blue">${esc(match.blueName)}</div>
+    </div>
+    <div class="obs-pick">${pickHTML}</div>
+  </div>`;
+}
+
+// A12: 현황 탭 차트 (캐릭터 픽률, 모드 분포, 팀별 진행률)
+function renderSummaryCharts() {
+  if (typeof Chart === 'undefined') return;
+  // 캐릭터별 픽 횟수
+  const pickCount = {};
+  CHARS.forEach(c => pickCount[c.id] = 0);
+  for (const mid in A.picks) Object.values(A.picks[mid]).forEach(p => { if (p.charId) pickCount[p.charId]++; });
+  for (const mid in A.chars) Object.values(A.chars[mid]).forEach(p => { if (p.charId) pickCount[p.charId]++; });
+  const labels = CHARS.map(c => c.name);
+  const counts = CHARS.map(c => pickCount[c.id] || 0);
+  if (document.getElementById('chart-picks')) {
+    makeChart('chart-picks', 'bar', {
+      labels,
+      datasets: [{ label:'캐릭터 픽 수', data: counts, backgroundColor:'rgba(0,200,255,.5)', borderColor:'#00c8ff', borderWidth:1 }],
+    }, { plugins:{ legend:{ display:false } } });
+  }
+  // 모드 분포
+  let free=0, gap1=0, gap2=0;
+  SCHEDULE.forEach(m => {
+    const pb = computeMatchPickban(m);
+    if (pb.mode === 'free') free++;
+    else if (pb.gap === 1) gap1++;
+    else if (pb.gap === 2) gap2++;
+  });
+  if (document.getElementById('chart-modes')) {
+    makeChart('chart-modes', 'doughnut', {
+      labels:['자유픽','1티어 차이','2티어 차이'],
+      datasets: [{ data:[free,gap1,gap2], backgroundColor:['#6a90b8','#00c8ff','#a855f7'] }],
+    });
+  }
+  // 진행 상태 (대기/진행/완료)
+  let wait=0, prog=0, done=0;
+  SCHEDULE.forEach(m => { if (A.done[m.id]) done++; else if (A.step[m.id]===1 || A.picks[m.id] || A.chars[m.id]) prog++; else wait++; });
+  if (document.getElementById('chart-progress')) {
+    makeChart('chart-progress', 'doughnut', {
+      labels:['대기','진행 중','완료'],
+      datasets: [{ data:[wait,prog,done], backgroundColor:['#334a6a','#ff9800','#00e676'] }],
+    });
+  }
+}
+
+// ── 체크인 메인 ────────────────────────────────────────────────
+function renderCheckin() {
+  const match = SCHEDULE.find(m => m.id === A.currentMatch);
+  if (!match) return `<div class="alert alert-info">경기를 선택하세요 (상단 경기 바)</div>`;
+
+  const redPs  = PLAYERS.filter(p => p.team === match.redName);
+  const bluePs = PLAYERS.filter(p => p.team === match.blueName);
+  const pb     = computeMatchPickban(match);
+  const step   = A.step[match.id] || 0;
+  const sel    = A.sel[match.id]  || {};
+  const isDone = A.done[match.id];
+  const isDirty = A.dirty[match.id];
+
+  let html = '';
+
+  // 티어 결정 근거 (양 팀 라쇼날) — title 속성으로 마우스오버 시 표시
+  const tierTip = [pb.redRationale, pb.blueRationale].filter(Boolean).join('\n');
+  const lockBadge = pb.locked
+    ? ` <span class="grade grade-WX" title="${esc(tierTip)}" style="cursor:help">🔒 모드 잠김</span>
+        <button class="btn btn-sm btn-secondary" style="padding:2px 8px;font-size:9px;margin-left:4px" onclick="unlockPickbanMode(${match.id})">잠금 해제</button>`
+    : '';
+
+  // 경기 헤더
+  html += `<div class="match-hdr">
+    <div class="mh-left">
+      <div class="mh-round">경기 ${match.id}${pb.mode==='pickban'?' · ⚡픽앤밴':' · 자유픽'}${lockBadge}</div>
+      <div class="mh-vs">
+        <span class="mh-team red" title="${esc(pb.redRationale||'')}">${esc(match.redName)}${pb.redTierLabel?` <span class="grade grade-${pb.redGrade}" style="cursor:help">${pb.redTierLabel}</span>`:''}</span>
+        <span class="mh-vstext">VS</span>
+        <span class="mh-team blue" title="${esc(pb.blueRationale||'')}">${esc(match.blueName)}${pb.blueTierLabel?` <span class="grade grade-${pb.blueGrade}" style="cursor:help">${pb.blueTierLabel}</span>`:''}</span>
+      </div>
+      ${pb.mode==='pickban' ? `
+      <div style="margin-top:5px;font-size:10px;color:var(--purple)">
+        ${esc(pb.lowName)}(<span class="grade grade-${pb.lowGrade}">${pb.lowTier}</span>) ${pb.gap===2?'3캐릭 선픽':'선픽'} · ${esc(pb.highName)}(<span class="grade grade-${pb.highGrade}">${pb.highTier}</span>) ${pb.gap===2?'남은 캐릭터 후픽':'후픽'}
+        ${pb.locked ? '' : (pb.basedOnSelection ? '' : ' <span class="dim">· 출전 3명 확정 전 미리보기 (로스터 기준)</span>')}
+      </div>` : ''}
+      <details style="margin-top:6px;font-size:10px">
+        <summary class="dim" style="cursor:pointer">티어 결정 근거 ▾</summary>
+        <div style="margin-top:4px;padding:6px 8px;background:var(--bg2);border-radius:4px;line-height:1.5">
+          ${pb.redRationale  ? `<div>· ${esc(pb.redRationale)}</div>`  : ''}
+          ${pb.blueRationale ? `<div>· ${esc(pb.blueRationale)}</div>` : ''}
+          ${pb.locked ? `<div class="dim" style="margin-top:4px">🔒 잠금 시각: ${new Date(pb.lockedAt).toLocaleTimeString('ko-KR')} — 출전 선수 변경에도 모드 유지됨</div>` : ''}
+        </div>
+      </details>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+      <div class="${isDone?'badge-done':isDirty?'badge-dirty':step===1?'badge-prog':'badge-wait'} mh-badge">
+        ${isDone ? '✓ 완료' : isDirty ? '● 미저장' : step===1 ? '진행 중' : '대기'}
+      </div>
+      ${(() => {
+        const histLen = A.history?.[match.id]?.length || 0;
+        return `<button class="btn btn-sm btn-secondary" ${histLen===0?'disabled':''}
+                  title="마지막 작업 되돌리기 (Cmd/Ctrl+Z)"
+                  onclick="undoLast(${match.id})"
+                  style="padding:3px 10px;font-size:10px">↩ 되돌리기 ${histLen?`(${histLen})`:''}</button>`;
+      })()}
+    </div>
+  </div>`;
+  // 변경 이력 토글
+  const hist = A.history?.[match.id] || [];
+  if (hist.length) {
+    html += `<details class="hist-panel" style="margin:0 0 10px;font-size:11px">
+      <summary class="dim" style="cursor:pointer;padding:4px 8px;background:var(--bg2);border-radius:4px">
+        📜 변경 이력 (${hist.length}건) ▾
+      </summary>
+      <div style="margin-top:4px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:4px">
+        ${hist.slice().reverse().map((h,i) => `
+          <div style="padding:5px 10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px">
+            <span>${i===0?'<strong>':''}${esc(h.label)}${i===0?' (마지막)</strong>':''}</span>
+            <span class="dim mono" style="font-size:10px">${new Date(h.ts).toLocaleTimeString('ko-KR')}</span>
+          </div>`).join('')}
+      </div>
+      <div style="text-align:right;margin-top:4px">
+        <button class="btn btn-sm btn-secondary" onclick="clearHistory(${match.id})" style="padding:2px 8px;font-size:10px">이력 비우기</button>
+      </div>
+    </details>`;
+  }
+
+  if (pb.mode === 'pickban') {
+    const gapDesc = pb.gap === 2
+      ? `<strong style="color:var(--green)">${esc(pb.lowName)}</strong>(${pb.lowTier})가 <strong>3캐릭터 모두 선픽</strong> →
+         <strong style="color:var(--accent)">${esc(pb.highName)}</strong>(${pb.highTier})는 <strong>남은 캐릭터에서 후픽</strong>
+         · 두 티어 차이`
+      : `<strong style="color:var(--green)">${esc(pb.lowName)}</strong>(${pb.lowTier}) <strong>선픽</strong> →
+         <strong style="color:var(--accent)">${esc(pb.highName)}</strong>(${pb.highTier}) <strong>후픽</strong> 교대
+         · 한 티어 차이 · 이미 픽한 캐릭터는 자동 밴`;
+    html += `<div class="pb-alert">
+      <div class="pb-title">⚡ PICK & BAN — ${pb.gap===2?'두':'한'} 티어 차이 보정</div>
+      <div class="sm dim">${gapDesc}</div>
+      <div class="pb-order">
+        ${pb.order.map(o => `<div class="pb-chip pb-${o.side==='low'?'low':'high'}">T${o.turn} ${esc(o.team)} (${o.role})</div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  const stepLabels = ['선수 선택', pb.mode==='pickban'?'픽앤밴':'캐릭터·스텟', '완료'];
+  html += `<div class="step-bar">
+    ${stepLabels.map((lbl,i) => `
+      <div class="step-item ${step===i?'active':step>i||isDone?'done':''}"
+           ${i < step ? `onclick="setStep(${match.id},${i})"` : ''}>
+        <span class="step-num">${step>i||isDone?'✓':(i+1)}</span>${lbl}
+      </div>`).join('')}
+  </div>`;
+
+  if (isDone) html += renderConfirmedView(match, pb, sel);
+  else if (step === 0) html += renderPlayerStep(match, redPs, bluePs, sel);
+  else if (step === 1) {
+    if (pb.mode === 'pickban') html += renderPickBanStep(match, pb, sel);
+    else html += renderFreePickStep(match, sel);
+  }
+
+  return html;
+}
+
+// ── STEP 0: 선수 선택 ──────────────────────────────────────────
+function renderPlayerStep(match, redPs, bluePs, sel) {
+  const rSel = sel.redSel || [];
+  const bSel = sel.blueSel || [];
+
+  let html = `<div class="teams-grid">`;
+  ['red','blue'].forEach(side => {
+    const players = side==='red' ? redPs : bluePs;
+    const selected = side==='red' ? rSel : bSel;
+    const teamName = side==='red' ? match.redName : match.blueName;
+    const conf = side==='red' ? sel.redConf : sel.blueConf;
+    const btnCls = side==='red' ? 'cbtn-red' : 'cbtn-blue';
+
+    html += `<div class="team-panel">
+      <div class="tphdr ${side}">
+        <div>
+          <div class="side-tag side-${side}">${side==='red'?'🔴 레드':'🔵 블루'}</div>
+          <div class="tp-name">${esc(teamName)}</div>
+          ${renderGradeRow(players)}
+        </div>
+        <span class="tp-cnt ${selected.length===3?'ok':selected.length>3?'over':''}">${selected.length}/3</span>
+      </div>
+      <div class="plist">`;
+
+    if (!players.length) {
+      html += `<div class="sm dim" style="padding:12px;text-align:center">해당 팀 선수 없음</div>`;
+    } else {
+      players.forEach(p => {
+        const isSel = selected.includes(p.name);
+        const isDis = !isSel && selected.length >= 3;
+        html += `<div class="pitem ${isSel?'sel '+side[0]:''} ${isDis?'dis':''}"
+                      onclick="togglePlayer(${match.id},'${side}','${esc(p.name)}')">
+          <div class="pchk"><span class="pchk-ico">✓</span></div>
+          <div class="pname">${esc(p.name)}</div>
+          <div class="pnick">${esc(p.nickname)}</div>
+          <div><span class="grade grade-${p.grade}">${p.grade}</span></div>
+          <div class="pno">#${p.number||'-'}</div>
+        </div>`;
+      });
+    }
+    html += `</div>
+      <div style="padding:0 7px 7px">
+        <button class="confirm-btn ${btnCls}" ${selected.length!==3||conf?'disabled':''}
+                onclick="confirmSide(${match.id},'${side}')">
+          ${conf ? '✓ 확정됨' : `${side==='red'?'레드':'블루'}팀 확정 (${selected.length}/3)`}
+        </button>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  if (sel.redConf && sel.blueConf) {
+    html += `<div class="fin-bar">
+      <div class="fin-info">✅ 양 팀 선수 선택 완료!</div>
+      <button class="fin-btn" onclick="setStep(${match.id},1)">다음 단계 →</button>
+    </div>`;
+  }
+  return html;
+}
+function renderGradeRow(players) {
+  if (!players.length) return '';
+  const grades = [...new Set(players.map(p => p.grade))];
+  return `<div style="margin-top:3px;display:flex;gap:3px;flex-wrap:wrap">
+    ${grades.map(g => `<span class="grade grade-${g}">${g}</span>`).join('')}
+  </div>`;
+}
+
+// ── STEP 1A: 자유픽 ────────────────────────────────────────────
+function renderFreePickStep(match, sel) {
+  const allPl = [
+    ...(sel.redSel  || []).map(n => ({ name:n, side:'red',  team:match.redName })),
+    ...(sel.blueSel || []).map(n => ({ name:n, side:'blue', team:match.blueName })),
+  ].map(x => ({ ...x, player: PLAYERS.find(p => p.name === x.name) || { name:x.name, grade:'', nickname:'' } }));
+
+  // 팀별로 이미 픽된 캐릭터 집계 (같은 팀 내 중복 방지용)
+  const teamPicks = { red: new Set(), blue: new Set() };
+  for (const { name, side } of allPl) {
+    const cid = (A.chars[match.id] || {})[name]?.charId;
+    if (cid) teamPicks[side].add(cid);
+  }
+  // 양 팀 통합 픽 (전체 중복 정보용 - 경고 표시)
+  const allPicked = new Set([...teamPicks.red, ...teamPicks.blue]);
+  const crossDups = [...teamPicks.red].filter(c => teamPicks.blue.has(c));
+
+  let html = '';
+  if (crossDups.length) {
+    const names = crossDups.map(id => CHARS.find(c => c.id === id)?.name || id).join(', ');
+    html += `<div class="alert alert-warn" style="margin-bottom:10px;padding:8px 12px;background:rgba(255,154,60,.1);border:1px solid rgba(255,154,60,.4);border-radius:6px;font-size:11px">
+      ⚠ 양 팀 공통 픽: <strong>${esc(names)}</strong> — 정책에 따라 허용/금지 확인 필요
+    </div>`;
+  }
+  ['red','blue'].forEach(side => {
+    const spl = allPl.filter(x => x.side === side);
+    html += `<div class="char-section">
+      <div class="cs-hdr">
+        <div class="cs-title">${side==='red'?'🔴 레드':'🔵 블루'} — ${esc(side==='red'?match.redName:match.blueName)}</div>
+      </div>`;
+    spl.forEach(({ name, player }) => {
+      const pChars = (A.chars[match.id] || {})[name] || {};
+      const selC = CHARS.find(c => c.id === pChars.charId);
+      const stat = pChars.stat || (selC ? [...selC.rec] : [1,1,1,1]);
+      const total = stat.reduce((a,b)=>a+b,0);
+      html += `<div class="player-row">
+        <div class="pr-info">
+          <div class="pr-name">${esc(name)}</div>
+          <div class="pr-sub">${esc(player.nickname)} · <span class="grade grade-${player.grade}">${player.grade}</span></div>
+          ${selC ? `<div class="pr-desc"><strong>${selC.name}</strong><br>${selC.desc}</div>` : ''}
+        </div>
+        <div class="char-grid">
+          ${CHARS.map(c => {
+            const isMine     = pChars.charId === c.id;
+            const teamHas    = teamPicks[side].has(c.id) && !isMine;     // 같은 팀에서 이미 픽 → 자동 밴
+            const otherHas   = teamPicks[side==='red'?'blue':'red'].has(c.id) && !teamHas; // 상대팀 픽 (경고)
+            const cls = ['char-card', isMine?'sel':'', teamHas?'banned':''].filter(Boolean).join(' ');
+            const tip = teamHas ? '같은 팀에서 이미 픽됨 (자동 밴)' : (otherHas ? '상대팀에서도 픽됨' : '');
+            const click = teamHas ? '' : `pickFreeChar(${match.id},'${esc(name)}','${c.id}')`;
+            return `
+            <div class="${cls}" ${tip?`title="${esc(tip)}"`:''}
+                 ${otherHas?'style="border:1px dashed rgba(255,154,60,.5)"':''}
+                 onclick="${click}">
+              <div class="char-icon">${c.icon}</div>
+              <div class="char-name">${c.name}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        ${renderStatEditor(match.id, `free_${name}`, stat, total, false)}
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  const valid = allPl.every(({ name }) => {
+    const pc = (A.chars[match.id] || {})[name];
+    return pc?.charId && (pc.stat||[]).reduce((a,b)=>a+b,0) === 10;
+  });
+
+  html += `<div class="fin-bar">
+    <div class="fin-info">${valid ? '✅ 모든 설정 완료' : '⚠ 캐릭터 미선택 또는 스텟 ≠ 10'}</div>
+    <div class="fin-actions">
+      <button class="btn btn-sm btn-secondary" onclick="setStep(${match.id},0)">← 이전</button>
+      <button class="btn btn-sm btn-primary" onclick="forceSaveCurrent()">💾 현재 저장</button>
+      <button class="fin-btn" ${valid?'':'disabled'} onclick="showPreFinalize(${match.id})">✓ 체크인 확정</button>
+    </div>
+  </div>`;
+  return html;
+}
+
+// ── STEP 1B: 픽앤밴 ────────────────────────────────────────────
+function renderPickBanStep(match, pb, sel) {
+  const picks = A.picks[match.id] || {};
+  const pickedChars = Object.values(picks).map(p => p.charId).filter(Boolean);
+
+  const lowPlayers  = (pb.lowSide  === 'red' ? sel.redSel  : sel.blueSel)  || [];
+  const highPlayers = (pb.highSide === 'red' ? sel.redSel  : sel.blueSel)  || [];
+
+  const headerLabel = pb.gap === 2
+    ? `⚡ PICK ORDER — ${esc(pb.lowName)}(${pb.lowTier}) 3선픽 → ${esc(pb.highName)}(${pb.highTier}) 3후픽`
+    : `⚡ PICK ORDER — 6턴 (선픽/후픽 교대)`;
+  let html = `<div class="pb-section">
+    <div class="pb-hdr"><div class="pb-hdr-title">${headerLabel}</div></div>`;
+
+  pb.order.forEach(({ turn, side, team, role }) => {
+    const isLow = side === 'low';
+    const pickSide = isLow ? pb.lowSide : pb.highSide;
+    const turnPlayers = isLow ? lowPlayers : highPlayers;
+    const teamPlNames = turnPlayers.map(n => PLAYERS.find(p => p.name === n) || { name:n, grade:'', nickname:'' });
+
+    const pData = picks[turn] || {};
+    const selC = CHARS.find(c => c.id === pData.charId);
+    const stat = pData.stat || (selC ? [...selC.rec] : [1,1,1,1]);
+    const total = stat.reduce((a,b)=>a+b,0);
+
+    html += `<div class="pb-turn">
+      <div class="pt-label">
+        <div class="pt-num ${isLow?'low':'high'}">T${turn}</div>
+        <div class="pt-role" style="color:${isLow?'var(--green)':'var(--accent)'}">${role}</div>
+        <div class="pt-team">${esc(team)}</div>
+        <div style="margin-top:3px"><span class="grade grade-${isLow?pb.lowGrade:pb.highGrade}">${isLow?pb.lowGrade:pb.highGrade}</span></div>
+      </div>
+      <div>
+        <select class="pb-player-sel" onchange="setPBPlayer(${match.id},${turn},'${pickSide}','${esc(team)}',this.value)">
+          <option value="">— 선수 선택 —</option>
+          ${teamPlNames.map(p => `<option value="${esc(p.name)}" ${pData.playerName===p.name?'selected':''}>${esc(p.name)} (${esc(p.nickname)})</option>`).join('')}
+        </select>
+        <div class="char-grid">
+          ${CHARS.map(c => {
+            const isBanned = pickedChars.includes(c.id) && pData.charId !== c.id;
+            const isSelected = pData.charId === c.id;
+            return `<div class="char-card ${isSelected?'sel':''} ${isBanned?'banned':''}"
+                         onclick="${isBanned?'':`selectPBChar(${match.id},${turn},'${c.id}')`}">
+              <div class="char-icon">${c.icon}</div>
+              <div class="char-name">${c.name}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        ${selC ? `<div class="pr-desc" style="margin-top:6px"><strong>${selC.name}</strong> · ${selC.desc}</div>` : ''}
+      </div>
+      ${renderStatEditor(match.id, `pb_${turn}`, stat, total, true, turn)}
+    </div>`;
+  });
+  html += `</div>`;
+
+  const allFilled = pb.order.every(({turn}) => {
+    const p = picks[turn];
+    return p?.playerName && p?.charId && (p.stat||[]).reduce((a,b)=>a+b,0) === 10;
+  });
+  const dupCount = (() => {
+    const ids = Object.values(picks).map(p=>p.charId).filter(Boolean);
+    return ids.length - new Set(ids).size;
+  })();
+
+  html += `<div class="fin-bar">
+    <div class="fin-info">
+      ${!allFilled ? '⚠ 미완료 턴 있음' : dupCount ? '⚠ 중복 캐릭터' : '✅ 모든 픽 완료'}
+    </div>
+    <div class="fin-actions">
+      <button class="btn btn-sm btn-secondary" onclick="setStep(${match.id},0)">← 이전</button>
+      <button class="btn btn-sm btn-primary" onclick="forceSaveCurrent()">💾 현재 저장</button>
+      <button class="fin-btn" ${allFilled&&!dupCount?'':'disabled'} onclick="showPreFinalize(${match.id})">✓ 체크인 확정</button>
+    </div>
+  </div>`;
+  return html;
+}
+
+function renderStatEditor(matchId, key, stat, total, isPB, turn) {
+  const cls = total===10?'st-ok':total>10?'st-over':'st-under';
+  // 추천/자동보정 버튼 onclick 빌드
+  const recCall  = isPB ? `applyRecPB(${matchId},${turn})`        : `applyRecFree(${matchId},'${key.replace(/^free_/,'')}')`;
+  const autoCall = isPB ? `autoBalancePB(${matchId},${turn})`      : `autoBalanceFree(${matchId},'${key.replace(/^free_/,'')}')`;
+  return `<div class="stat-box">
+    <div class="stat-hdr">
+      <span>스텟</span>
+      <span style="display:flex;gap:4px;align-items:center">
+        <button class="btn btn-sm btn-secondary" style="padding:2px 6px;font-size:9px" onclick="${recCall}" title="이 캐릭터의 추천 스텟 적용">⭐ 추천</button>
+        <button class="btn btn-sm btn-secondary" style="padding:2px 6px;font-size:9px" onclick="${autoCall}" title="합계 10이 되도록 자동 보정 (1~5 범위 유지)">⚖ 10 보정</button>
+        <span class="stat-total ${cls} mono">${total}/10</span>
+      </span>
+    </div>
+    <div class="stat-grid">
+      ${STAT_LABELS.map((lbl,i) => `
+        <div class="stat-cell">
+          <div class="stat-lbl">${lbl}</div>
+          <div class="stat-ctl">
+            <button class="stat-btn" onclick="${isPB ? `adjPBStat(${matchId},${turn},${i},1)` : `adjFreeStat(${matchId},'${key}',${i},1)`}">▲</button>
+            <div class="stat-val">${stat[i]}</div>
+            <button class="stat-btn" onclick="${isPB ? `adjPBStat(${matchId},${turn},${i},-1)` : `adjFreeStat(${matchId},'${key}',${i},-1)`}">▼</button>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ── 확정 뷰 ───────────────────────────────────────────────────
+function renderConfirmedView(match, pb, sel) {
+  let html = '';
+  if (pb.mode === 'pickban') {
+    const picks = A.picks[match.id] || {};
+    html += `<div class="pb-section">
+      <div class="pb-hdr"><div class="pb-hdr-title" style="color:var(--green)">✓ 픽앤밴 확정 기록</div></div>`;
+    pb.order.forEach(({ turn, side, team, role }) => {
+      const p = picks[turn] || {};
+      const c = CHARS.find(x => x.id === p.charId);
+      const isLow = side === 'low';
+      html += `<div style="padding:9px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="mono pt-num ${isLow?'low':'high'}" style="font-size:16px;width:28px">T${turn}</span>
+        <span class="sm" style="color:${isLow?'var(--green)':'var(--accent)'};width:32px">${role}</span>
+        <span class="grade grade-${isLow?pb.lowGrade:pb.highGrade}" style="min-width:60px">${esc(team)}</span>
+        <span style="font-size:12px;font-weight:600;flex:1;min-width:100px">${esc(p.playerName||'?')}</span>
+        <span class="sm">${c?c.icon+' '+c.name:'미선택'}</span>
+        <span class="mono sm" style="color:var(--accent)">${(p.stat||[]).join('-')}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  } else {
+    const allPl = [
+      ...(sel.redSel  || []).map(n => ({ name:n, side:'red' })),
+      ...(sel.blueSel || []).map(n => ({ name:n, side:'blue' })),
+    ];
+    html += `<div class="sum-grid">`;
+    ['red','blue'].forEach(side => {
+      const spl = allPl.filter(x => x.side === side);
+      html += `<div class="sum-card">
+        <div class="sum-chdr ${side}">${side==='red'?'🔴 '+match.redName:'🔵 '+match.blueName}</div>`;
+      spl.forEach(({ name }) => {
+        const pc = (A.chars[match.id]||{})[name]||{};
+        const c = CHARS.find(x => x.id === pc.charId);
+        html += `<div class="sum-row">
+          <div class="sum-name">${esc(name)}</div>
+          <div class="sum-char">${c?c.icon+' '+c.name:'미선택'}</div>
+          <div class="sum-stat mono">${(pc.stat||[]).join('-')}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // P9: 결과/KDA 입력 영역
+  const result = A.result[match.id] || { kda:{} };
+  const allPlayers = [
+    ...(sel.redSel  || []).map(n => ({ name:n, side:'red',  team:match.redName })),
+    ...(sel.blueSel || []).map(n => ({ name:n, side:'blue', team:match.blueName })),
+  ];
+  html += `<div class="card" style="margin-top:10px">
+    <div class="card-title">📊 경기 결과 / KDA (선택사항)</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <span class="dim sm">승리팀:</span>
+      <button class="btn btn-sm ${result.winner==='red'?'btn-primary':'btn-secondary'}" onclick="setMatchWinner(${match.id},'red')">🔴 ${esc(match.redName)}</button>
+      <button class="btn btn-sm ${result.winner==='blue'?'btn-primary':'btn-secondary'}" onclick="setMatchWinner(${match.id},'blue')">🔵 ${esc(match.blueName)}</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
+      ${allPlayers.map(({name,side}) => {
+        const k = result.kda?.[name] || {k:0,d:0,a:0};
+        return `<div style="padding:6px 8px;border:1px solid var(--border);border-radius:5px;background:var(--bg2)">
+          <div style="font-weight:600;margin-bottom:4px;color:var(--${side==='red'?'red':'blue'})">${esc(name)}</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <label class="lbl xs" style="margin:0">K</label>
+            <input type="number" min="0" value="${k.k}" style="width:50px;padding:3px 5px" onchange="setMatchKDA(${match.id},'${esc(name)}','k',this.value)">
+            <label class="lbl xs" style="margin:0">D</label>
+            <input type="number" min="0" value="${k.d}" style="width:50px;padding:3px 5px" onchange="setMatchKDA(${match.id},'${esc(name)}','d',this.value)">
+            <label class="lbl xs" style="margin:0">A</label>
+            <input type="number" min="0" value="${k.a}" style="width:50px;padding:3px 5px" onchange="setMatchKDA(${match.id},'${esc(name)}','a',this.value)">
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <textarea placeholder="경기 메모 (선택)" rows="2" style="margin-top:8px" onchange="setMatchNotes(${match.id},this.value)">${esc(result.notes||'')}</textarea>
+  </div>`;
+
+  html += `<div class="fin-bar">
+    <div class="fin-info">✓ 체크인 확정됨${A.dirty[match.id]?' · ⚠ 변경 후 미저장':''}</div>
+    <div class="fin-actions">
+      <button class="btn btn-sm btn-primary" onclick="forceSaveCurrent()">💾 다시 저장</button>
+      <button class="btn btn-sm btn-danger" onclick="resetCheckin(${match.id})">↺ 재입력</button>
+    </div>
+  </div>`;
+  return html;
+}
+
+// ── 경기 순서 탭 ──────────────────────────────────────────────
+function renderSchedule() {
+  let html = `<div class="card"><div class="card-title">📋 경기 대진표 (36경기)</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:var(--panel2);color:var(--text2)">
+        <th style="padding:7px 10px;text-align:left">경기</th>
+        <th style="padding:7px 10px;text-align:center">레드</th>
+        <th style="padding:7px 10px;text-align:center">VS</th>
+        <th style="padding:7px 10px;text-align:center">블루</th>
+        <th style="padding:7px 10px;text-align:center">모드</th>
+        <th style="padding:7px 10px;text-align:center">상태</th>
+      </tr></thead><tbody>`;
+  SCHEDULE.forEach(m => {
+    const done = A.done[m.id];
+    const dirty = A.dirty[m.id];
+    const redPs  = PLAYERS.filter(p => p.team === m.redName);
+    const bluePs = PLAYERS.filter(p => p.team === m.blueName);
+    const pb = getPickBanMode(redPs, bluePs, m.redName, m.blueName);
+    html += `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer"
+               onclick="goTab('checkin');selectMatch(${m.id})"
+               onmouseover="this.style.background='rgba(0,200,255,.04)'"
+               onmouseout="this.style.background=''">
+      <td style="padding:8px 10px;font-weight:600;font-family:monospace">${m.label}</td>
+      <td style="padding:8px 10px;text-align:center;color:var(--red);font-weight:600">${esc(m.redName)}</td>
+      <td style="padding:8px 10px;text-align:center;color:var(--text3);font-size:10px">VS</td>
+      <td style="padding:8px 10px;text-align:center;color:var(--blue);font-weight:600">${esc(m.blueName)}</td>
+      <td style="padding:8px 10px;text-align:center">
+        ${pb.mode==='pickban'?'<span class="grade grade-WX">⚡픽앤밴</span>':'<span class="sm dim">자유픽</span>'}
+      </td>
+      <td style="padding:8px 10px;text-align:center">
+        ${done?'<span style="color:var(--green);font-size:10px">✓ 완료</span>'
+              :dirty?'<span style="color:var(--orange);font-size:10px">● 미저장</span>'
+              :'<span style="color:var(--text3);font-size:10px">대기</span>'}
+      </td></tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+// ── 현황 탭 ───────────────────────────────────────────────────
+function renderSummary() {
+  const done  = SCHEDULE.filter(m => A.done[m.id]).length;
+  const dirty = SCHEDULE.filter(m => A.dirty[m.id]).length;
+  const gdDone    = Object.keys(groupDrawMap).length >= 8;
+  const sf1assigned = !SCHEDULE.find(m=>m.id===9)?.redName?.includes('경기');
+  const sf2assigned = !SCHEDULE.find(m=>m.id===12)?.redName?.includes('경기');
+  const fAssigned   = !SCHEDULE.find(m=>m.id===18)?.redName?.includes('경기');
+  const r1Done = [1,2,3,4].every(id => A.done[id]);
+  const cl_wn_Done = [5,6,7,8].every(id => A.done[id]);
+  const sfStarted  = [9,10,11,12,13,14].some(id => A.done[id]);
+
+  // ★ 조배정 현황 카드
+  let groupDrawCard = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">🎲 조배정 현황</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">`;
+  GROUP_CODES.forEach(code => {
+    const team = groupDrawMap[code] || '';
+    const colorKey = code[0];
+    const colors = {A:'var(--accent)',R:'var(--green)',P:'var(--orange)'};
+    const color = colors[colorKey]||'var(--text)';
+    groupDrawCard += `<div style="background:var(--bg3);border:1px solid ${team?color:'var(--border)'};border-radius:8px;padding:8px 10px;text-align:center">
+      <div style="font-size:10px;color:${color};font-weight:700;margin-bottom:3px">${code}</div>
+      <div style="font-size:12px;font-weight:600;color:${team?'var(--text)':'var(--text3)'}">${team||'미배정'}</div>
+    </div>`;
+  });
+  groupDrawCard += `</div>
+    <button class="btn btn-sm ${gdDone?'btn-secondary':'btn-primary'}" onclick="openGroupDrawModal()">
+      ${gdDone?'✏ 조배정 수정':'🎲 조배정 입력'}
+    </button>
+  </div>`;
+
+  // ★ 본선 배정 카드
+  const sf1m = SCHEDULE.find(m=>m.id===9);
+  const sf2m = SCHEDULE.find(m=>m.id===12);
+  const fm   = SCHEDULE.find(m=>m.id===18);
+  let bracketCard = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">🏆 본선 배정 현황</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg3);border:1px solid ${sf1assigned&&sf2assigned?'var(--green)':'var(--border)'};border-radius:8px">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:${sf1assigned&&sf2assigned?'var(--green)':'var(--text)'}">
+            ${sf1assigned&&sf2assigned?'✓ ':''}4강 배정
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">
+            ${sf1assigned?`1경기: <strong>${sf1m.redName}</strong> vs <strong>${sf1m.blueName}</strong>`:'미배정'}
+            &nbsp;/&nbsp;
+            ${sf2assigned?`2경기: <strong>${sf2m.redName}</strong> vs <strong>${sf2m.blueName}</strong>`:'미배정'}
+          </div>
+        </div>
+        <button class="btn btn-sm ${r1Done||cl_wn_Done?'btn-primary':'btn-secondary'}" onclick="openGimhaeBracketModal('sf')">
+          ${sf1assigned&&sf2assigned?'✏ 수정':'⚡ 4강 배정'}
+        </button>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg3);border:1px solid ${fAssigned?'var(--green)':'var(--border)'};border-radius:8px">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:${fAssigned?'var(--green)':'var(--text)'}">
+            ${fAssigned?'✓ ':''}결승 / 3·4위전 배정
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">
+            ${fAssigned?`결승: <strong>${fm.redName}</strong> vs <strong>${fm.blueName}</strong>`:'미배정'}
+          </div>
+        </div>
+        <button class="btn btn-sm ${sfStarted?'btn-primary':'btn-secondary'}" onclick="openGimhaeBracketModal('final')">
+          ${fAssigned?'✏ 수정':'⚡ 결승 배정'}
+        </button>
+      </div>
+
+    </div>
+  </div>`;
+
+  let html = groupDrawCard + bracketCard + `<div class="card"><div class="card-title">📊 체크인 현황</div>
+    <div class="grid2" style="margin-bottom:14px;grid-template-columns:repeat(3,1fr)">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center">
+        <div class="mono" style="font-size:28px;font-weight:700;color:var(--green)">${done}</div>
+        <div class="sm dim">완료</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center">
+        <div class="mono" style="font-size:28px;font-weight:700;color:var(--orange)">${dirty}</div>
+        <div class="sm dim">미저장</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center">
+        <div class="mono" style="font-size:28px;font-weight:700;color:var(--text2)">${SCHEDULE.length-done}</div>
+        <div class="sm dim">대기</div>
+      </div>
+    </div>
+    <div class="grid2" style="grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div>
+        <div class="sm dim" style="margin-bottom:6px">진행 상태</div>
+        <div style="height:200px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px"><canvas id="chart-progress"></canvas></div>
+      </div>
+      <div>
+        <div class="sm dim" style="margin-bottom:6px">픽앤밴 모드 분포</div>
+        <div style="height:200px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px"><canvas id="chart-modes"></canvas></div>
+      </div>
+    </div>
+    <div>
+      <div class="sm dim" style="margin-bottom:6px">캐릭터 픽 횟수 (확정 + 미확정 합산)</div>
+      <div style="height:240px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px"><canvas id="chart-picks"></canvas></div>
+    </div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn btn-sm btn-secondary" onclick="printReport()">🖨 인쇄 / PDF 저장</button>
+    </div>
+    </div>`;
+
+  const doneMatches = SCHEDULE.filter(m => A.done[m.id]);
+  if (doneMatches.length) {
+    doneMatches.forEach(m => {
+      const sel = A.sel[m.id] || {};
+      const pb = getPickBanMode(
+        PLAYERS.filter(p => p.team === m.redName),
+        PLAYERS.filter(p => p.team === m.blueName),
+        m.redName, m.blueName
+      );
+      html += `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:11px 13px;margin-bottom:8px">
+        <div class="flex-bet" style="margin-bottom:6px">
+          <strong>${m.label}: ${esc(m.redName)} vs ${esc(m.blueName)}</strong>
+          ${pb.mode==='pickban'?'<span class="grade grade-WX">⚡픽앤밴</span>':''}
+          <button class="btn btn-sm btn-secondary" onclick="goTab('checkin');selectMatch(${m.id})">보기</button>
+        </div>`;
+      if (pb.mode === 'pickban') {
+        const picks = A.picks[m.id] || {};
+        html += `<div style="display:flex;flex-wrap:wrap;gap:4px">`;
+        pb.order.forEach(({ turn }) => {
+          const p = picks[turn] || {};
+          const c = CHARS.find(x => x.id === p.charId);
+          const turnSide = pb.order.find(o => o.turn === turn)?.side;
+          const side = turnSide === 'low' ? pb.lowSide : pb.highSide;
+          html += `<span style="background:var(--panel);border:1px solid ${side==='red'?'var(--red-bd)':'var(--blue-bd)'};color:var(--text2);padding:2px 8px;border-radius:8px;font-size:10px">
+            T${turn} ${esc(p.playerName||'?')} ${c?c.icon+c.name:''}
+          </span>`;
+        });
+        html += `</div>`;
+      } else {
+        const allPl = [...(sel.redSel||[]).map(n=>({n,side:'red'})), ...(sel.blueSel||[]).map(n=>({n,side:'blue'}))];
+        html += `<div style="display:flex;flex-wrap:wrap;gap:4px">`;
+        allPl.forEach(({ n, side }) => {
+          const pc = (A.chars[m.id]||{})[n]||{};
+          const c = CHARS.find(x => x.id === pc.charId);
+          html += `<span style="background:var(--panel);border:1px solid ${side==='red'?'var(--red-bd)':'var(--blue-bd)'};color:var(--text2);padding:2px 8px;border-radius:8px;font-size:10px">
+            ${esc(n)} ${c?c.icon+c.name:''}
+          </span>`;
+        });
+        html += `</div>`;
+      }
+      html += `</div>`;
+    });
+  } else {
+    html += `<div class="alert alert-warn">아직 확정된 체크인 없음</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+// ── 선수 명단 탭 ──────────────────────────────────────────────
+function renderRoster() {
+  const teamGrouped = {};
+  PLAYERS.forEach(p => {
+    if (!teamGrouped[p.team]) teamGrouped[p.team] = [];
+    teamGrouped[p.team].push(p);
+  });
+  const orderedTeams = Object.entries(TEAMS).sort((a,b)=>+a[0]-+b[0]).map(([,n])=>n);
+
+  let html = `<div class="card"><div class="card-title">👥 참가 선수 명단 (${PLAYERS.length}명 / ${orderedTeams.length}팀)</div>`;
+  orderedTeams.forEach(team => {
+    const ps = teamGrouped[team] || [];
+    html += `<div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+        <strong style="font-size:14px;color:var(--accent)">${esc(team)}</strong>
+        <span class="sm dim">${ps.length}명</span>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden">`;
+    ps.forEach((p,i) => {
+      html += `<div style="padding:8px 13px;display:flex;align-items:center;gap:10px;${i<ps.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
+        <span style="font-family:monospace;font-size:11px;color:var(--text3);width:30px">#${p.number}</span>
+        <strong style="font-size:13px;flex:1">${esc(p.name)}</strong>
+        <span class="sm dim" style="width:80px">${esc(p.nickname)}</span>
+        <span class="grade grade-${p.grade}">${p.grade}</span>
+        <span class="sm dim" style="width:70px">${esc(p.club)}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⑧ 액션
+// ═══════════════════════════════════════════════════════════════
+function togglePlayer(matchId, side, name) {
+  // 픽이 시작되어 모드가 잠겨 있으면 경고
+  if (A.lockedPb && A.lockedPb[matchId]) {
+    if (!confirm('이 경기는 픽이 시작되어 모드가 잠겨 있습니다.\n출전 선수를 변경하면 잠금은 유지되지만, 변경된 선수의 픽 데이터가 정리됩니다. 계속하시겠습니까?')) return;
+  }
+  const sideLabel = side==='red'?'레드':'블루';
+  const isRemoving = (A.sel[matchId]?.[side==='red'?'redSel':'blueSel'] || []).includes(name);
+  pushHistory(matchId, `${sideLabel} ${isRemoving?'제외':'선택'}: ${name}`);
+  if (!A.sel[matchId]) A.sel[matchId] = {};
+  const sel = A.sel[matchId];
+  const key = side==='red' ? 'redSel' : 'blueSel';
+  if (!sel[key]) sel[key] = [];
+  const idx = sel[key].indexOf(name);
+  if (idx === -1) {
+    if (sel[key].length >= 3) { toast('최대 3명', 'err'); return; }
+    sel[key].push(name);
+  } else {
+    sel[key].splice(idx, 1);
+    sel[side==='red' ? 'redConf' : 'blueConf'] = false;
+    // 픽앤밴/자유픽 상태에서도 제거된 선수 정리
+    if (A.picks[matchId]) {
+      Object.values(A.picks[matchId]).forEach(p => { if (p.playerName === name) p.playerName = ''; });
+    }
+    if (A.chars[matchId]) delete A.chars[matchId][name];
+  }
+  markDirty(matchId);
+  renderMain();
+}
+
+function confirmSide(matchId, side) {
+  const sel = A.sel[matchId] || {};
+  const key = side==='red' ? 'redSel' : 'blueSel';
+  if (!sel[key] || sel[key].length !== 3) { toast('선수 3명 선택 필요', 'err'); return; }
+  pushHistory(matchId, `${side==='red'?'레드':'블루'}팀 확정`);
+  A.sel[matchId][side==='red' ? 'redConf' : 'blueConf'] = true;
+  markDirty(matchId);
+  toast(`${side==='red'?'레드':'블루'}팀 확정!`, 'ok');
+  renderMain();
+}
+
+function setStep(matchId, step) {
+  A.step[matchId] = step;
+  saveState();
+  renderMain();
+}
+
+function pickFreeChar(matchId, playerName, charId) {
+  // 같은 팀 동일 캐릭터 중복 차단
+  const match = SCHEDULE.find(m => m.id === matchId);
+  const sel   = A.sel[matchId] || {};
+  const isRed = (sel.redSel  || []).includes(playerName);
+  const teamSel = isRed ? (sel.redSel || []) : (sel.blueSel || []);
+  const dup = teamSel.find(n => n !== playerName && (A.chars[matchId]?.[n]?.charId === charId));
+  if (dup) {
+    const cName = CHARS.find(x => x.id === charId)?.name || charId;
+    toast(`같은 팀 ${dup}이 이미 ${cName}을(를) 픽함 (자동 밴)`, 'err');
+    return;
+  }
+  const c = CHARS.find(x => x.id === charId);
+  pushHistory(matchId, `${playerName} 캐릭터 → ${c?.name||charId}`);
+  lockPickbanMode(matchId); // 첫 픽 시점에 모드 잠금
+  if (!A.chars[matchId]) A.chars[matchId] = {};
+  A.chars[matchId][playerName] = { charId, stat: c ? [...c.rec] : [1,1,1,1] };
+  markDirty(matchId);
+  renderMain();
+}
+
+function adjFreeStat(matchId, key, idx, delta) {
+  const name = key.replace(/^free_/, '');
+  const pc = (A.chars[matchId] || {})[name];
+  if (!pc) return;
+  const nv = pc.stat[idx] + delta;
+  if (nv < 1 || nv > 5) return;
+  if (pc.stat.reduce((a,b)=>a+b,0) + delta > 10) { toast('합계 10 초과', 'err'); return; }
+  pushHistory(matchId, `${name} 스텟 ${STAT_LABELS[idx]} ${delta>0?'+':''}${delta}`);
+  lockPickbanMode(matchId);
+  pc.stat[idx] = nv;
+  markDirty(matchId);
+  renderMain();
+}
+
+function setPBPlayer(matchId, turn, side, team, playerName) {
+  pushHistory(matchId, `T${turn} 선수 → ${playerName||'(해제)'}`);
+  lockPickbanMode(matchId);
+  if (!A.picks[matchId]) A.picks[matchId] = {};
+  if (!A.picks[matchId][turn]) A.picks[matchId][turn] = {};
+  A.picks[matchId][turn].playerName = playerName;
+  A.picks[matchId][turn].side = side;
+  A.picks[matchId][turn].team = team;
+  markDirty(matchId);
+  renderMain();
+}
+
+function selectPBChar(matchId, turn, charId) {
+  if (!A.picks[matchId]) A.picks[matchId] = {};
+  if (!A.picks[matchId][turn]) A.picks[matchId][turn] = {};
+  const already = Object.entries(A.picks[matchId])
+    .filter(([t]) => parseInt(t) !== turn)
+    .map(([,v]) => v.charId).filter(Boolean);
+  if (already.includes(charId)) { toast('이미 픽된 캐릭터 (자동 밴)', 'err'); return; }
+  const c = CHARS.find(x => x.id === charId);
+  pushHistory(matchId, `T${turn} 캐릭터 → ${c?.name||charId}`);
+  lockPickbanMode(matchId);
+  A.picks[matchId][turn].charId = charId;
+  if (!A.picks[matchId][turn].stat) {
+    A.picks[matchId][turn].stat = c ? [...c.rec] : [1,1,1,1];
+  }
+  markDirty(matchId);
+  renderMain();
+}
+
+function adjPBStat(matchId, turn, idx, delta) {
+  const p = (A.picks[matchId] || {})[turn];
+  if (!p) return;
+  if (!p.stat) p.stat = [1,1,1,1];
+  const nv = p.stat[idx] + delta;
+  if (nv < 1 || nv > 5) return;
+  if (p.stat.reduce((a,b)=>a+b,0) + delta > 10) { toast('합계 10 초과', 'err'); return; }
+  pushHistory(matchId, `T${turn} 스텟 ${STAT_LABELS[idx]} ${delta>0?'+':''}${delta}`);
+  lockPickbanMode(matchId);
+  p.stat[idx] = nv;
+  markDirty(matchId);
+  renderMain();
+}
+
+// 스텟 자동 보정: 1~5 범위 유지하며 합계를 10으로 맞춤
+//   합계 > 10: 가장 큰 스텟부터 1씩 차감 (단 최소 1 유지)
+//   합계 < 10: 가장 작은 스텟부터 1씩 증가 (단 최대 5 유지)
+function autoBalanceStat(stat) {
+  const r = [...stat].map(v => Math.max(1, Math.min(5, v|0)));
+  let safety = 100;
+  while (r.reduce((a,b)=>a+b,0) > 10 && safety-- > 0) {
+    let idx = -1, max = 0;
+    for (let i = 0; i < r.length; i++) if (r[i] > 1 && r[i] > max) { max = r[i]; idx = i; }
+    if (idx === -1) break;
+    r[idx]--;
+  }
+  while (r.reduce((a,b)=>a+b,0) < 10 && safety-- > 0) {
+    let idx = -1, min = 6;
+    for (let i = 0; i < r.length; i++) if (r[i] < 5 && r[i] < min) { min = r[i]; idx = i; }
+    if (idx === -1) break;
+    r[idx]++;
+  }
+  return r;
+}
+
+// 추천 스텟 적용 (PB)
+function applyRecPB(matchId, turn) {
+  const p = (A.picks[matchId] || {})[turn];
+  if (!p?.charId) { toast('먼저 캐릭터를 선택하세요', 'err'); return; }
+  const c = CHARS.find(x => x.id === p.charId);
+  if (!c?.rec) return;
+  pushHistory(matchId, `T${turn} 추천 스텟 적용`);
+  lockPickbanMode(matchId);
+  p.stat = [...c.rec];
+  markDirty(matchId);
+  renderMain();
+}
+// 10에 자동 보정 (PB)
+function autoBalancePB(matchId, turn) {
+  const p = (A.picks[matchId] || {})[turn];
+  if (!p?.stat) return;
+  const newStat = autoBalanceStat(p.stat);
+  if (newStat.reduce((a,b)=>a+b,0) !== 10) { toast('보정 불가 (1~5 범위 한계)', 'err'); return; }
+  pushHistory(matchId, `T${turn} 스텟 자동 보정`);
+  lockPickbanMode(matchId);
+  p.stat = newStat;
+  markDirty(matchId);
+  renderMain();
+}
+// 추천 스텟 적용 (자유픽)
+function applyRecFree(matchId, playerName) {
+  const pc = (A.chars[matchId] || {})[playerName];
+  if (!pc?.charId) { toast('먼저 캐릭터를 선택하세요', 'err'); return; }
+  const c = CHARS.find(x => x.id === pc.charId);
+  if (!c?.rec) return;
+  pushHistory(matchId, `${playerName} 추천 스텟 적용`);
+  lockPickbanMode(matchId);
+  pc.stat = [...c.rec];
+  markDirty(matchId);
+  renderMain();
+}
+// 10에 자동 보정 (자유픽)
+function autoBalanceFree(matchId, playerName) {
+  const pc = (A.chars[matchId] || {})[playerName];
+  if (!pc?.stat) return;
+  const newStat = autoBalanceStat(pc.stat);
+  if (newStat.reduce((a,b)=>a+b,0) !== 10) { toast('보정 불가 (1~5 범위 한계)', 'err'); return; }
+  pushHistory(matchId, `${playerName} 스텟 자동 보정`);
+  lockPickbanMode(matchId);
+  pc.stat = newStat;
+  markDirty(matchId);
+  renderMain();
+}
+
+// ── 체크인 확정 (시트 저장 + done 표시) ─────────────────────────
+async function finalizeCheckin(matchId) {
+  await saveMatchToSheet(matchId, true);
+  // saveMatchToSheet이 done과 step을 처리함
+  A.step[matchId] = 2;
+  saveState();
+  renderMatchBar();
+  renderMain();
+}
+
+function resetCheckin(matchId) {
+  if (!confirm('이 경기 체크인을 초기화하겠습니까? (시트 데이터는 별도)')) return;
+  delete A.sel[matchId];
+  delete A.picks[matchId];
+  delete A.chars[matchId];
+  delete A.done[matchId];
+  delete A.dirty[matchId];
+  if (A.lockedPb) delete A.lockedPb[matchId];
+  A.step[matchId] = 0;
+  saveState();
+  renderMatchBar();
+  renderMain();
+  toast('초기화됨', 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⑨ CSV 내보내기 (백업)
+// ═══════════════════════════════════════════════════════════════
+function exportCSV() {
+  const rows = [['경기ID','경기명','레드팀','블루팀','픽모드','턴','진영','팀명','선수명','닉네임','등급','캐릭터','ATK','DEF','SPD','SHD','픽순서','확정여부']];
+  SCHEDULE.forEach(m => {
+    const sel = A.sel[m.id] || {};
+    const hasAny = (sel.redSel?.length||sel.blueSel?.length) || A.picks[m.id] || A.chars[m.id];
+    if (!hasAny) return;
+    const pb = getPickBanMode(
+      PLAYERS.filter(p => p.team === m.redName),
+      PLAYERS.filter(p => p.team === m.blueName),
+      m.redName, m.blueName
+    );
+    if (pb.mode === 'pickban') {
+      const raw = A.picks[m.id] || {};
+      pb.order.forEach(({ turn, side, team, role }) => {
+        const p = raw[turn] || {};
+        const player = PLAYERS.find(x => x.name === p.playerName) || {};
+        const c = CHARS.find(x => x.id === p.charId);
+        rows.push([m.id, m.label, m.redName, m.blueName, '픽앤밴',
+          turn, side===pb.lowSide?(pb.lowSide==='red'?'red':'blue'):side===pb.highSide?(pb.highSide==='red'?'red':'blue'):side,
+          team, p.playerName||'', player.nickname||'', player.grade||'',
+          c?.name||'', p.stat?.[0]||0, p.stat?.[1]||0, p.stat?.[2]||0, p.stat?.[3]||0, role,
+          A.done[m.id]?'확정':'임시']);
+      });
+    } else {
+      [...(sel.redSel||[]).map(n=>({n,side:'red',team:m.redName})),
+       ...(sel.blueSel||[]).map(n=>({n,side:'blue',team:m.blueName}))].forEach(({n,side,team},i) => {
+        const player = PLAYERS.find(p => p.name === n) || {};
+        const pc = (A.chars[m.id]||{})[n]||{};
+        const c = CHARS.find(x => x.id === pc.charId);
+        rows.push([m.id, m.label, m.redName, m.blueName, '자유픽',
+          i+1, side, team, n, player.nickname||'', player.grade||'',
+          c?.name||'', pc.stat?.[0]||0, pc.stat?.[1]||0, pc.stat?.[2]||0, pc.stat?.[3]||0, '',
+          A.done[m.id]?'확정':'임시']);
+      });
+    }
+  });
+  if (rows.length === 1) { toast('내보낼 데이터 없음', 'err'); return; }
+  const csv = rows.map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8' }));
+  a.download = `HADO_checkin_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('CSV 다운로드 시작', 'ok');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⑩ UI 유틸
+// ═══════════════════════════════════════════════════════════════
+function setStat(st, txt) {
+  const dot = document.getElementById('sdot');
+  dot.className = 'sdot ' + (st==='ok'?'ok':st==='busy'?'busy':st==='err'?'err':st==='warn'?'warn':'');
+  document.getElementById('sstat').textContent = txt;
+}
+function toast(msg, type='info') {
+  const w = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  const cls = { ok:'toast-ok', err:'toast-err', info:'toast-info' };
+  el.className = `toast ${cls[type]||'toast-info'}`;
+  el.innerHTML = `<span>${{ok:'✓',err:'✕',info:'ℹ'}[type]||'•'}</span><span>${msg}</span>`;
+  w.appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3000);
+}
+function esc(s) {
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⑩ 인라인 테스트 (룰 변경 후 회귀 검증용)
+//   콘솔에서 runPickbanTests() 실행 또는 Cmd+Shift+T 단축키
+// ═══════════════════════════════════════════════════════════════
+const PICKBAN_EXPECTED = {
+  // 결정적 케이스 — 룰 변경 시 깨지면 의도 검증
+  // 형식: { red, blue, expectedMode, expectedGap?, lowName? }
+  freeSameTier: [
+    { red:'HORIZON',     blue:'DOUBLE WING',  mode:'free' },           // 고-고
+    { red:'HORIZON',     blue:'ASAP',         mode:'free' },           // 고-고
+    { red:'STRIKER',     blue:'NEW',          mode:'free' },           // 중-중
+    { red:'STRIKER',     blue:'ARC',          mode:'free' },           // 중-중 (ARC=중)
+    { red:'NEW',         blue:'VANGUARD',     mode:'free' },           // 중-중
+  ],
+  oneTierGap: [
+    { red:'HORIZON',     blue:'NEW',          mode:'pickban', gap:1, lowName:'NEW' },
+    { red:'STRIKER',     blue:'FC COCO',      mode:'pickban', gap:1, lowName:'FC COCO' },
+    { red:'ASAP',        blue:'VANGUARD',     mode:'pickban', gap:1, lowName:'VANGUARD' },
+    { red:'ASAP',        blue:'ARC',          mode:'pickban', gap:1, lowName:'ARC' },
+  ],
+  twoTierGap: [
+    { red:'HORIZON',     blue:'FC COCO',      mode:'pickban', gap:2, lowName:'FC COCO' },
+    { red:'ASAP',        blue:'FC COCO',      mode:'pickban', gap:2, lowName:'FC COCO' },
+    { red:'DOUBLE WING', blue:'FC COCO',      mode:'pickban', gap:2, lowName:'FC COCO' },
+  ],
+  highSpecial: [
+    // HIGH는 동티어 없이 항상 gap=1
+    { red:'HORIZON',     blue:'HIGH',         mode:'pickban', gap:1, lowName:'HIGH' },
+    { red:'STRIKER',     blue:'HIGH',         mode:'pickban', gap:1, lowName:'HIGH' },
+    { red:'NEW',         blue:'HIGH',         mode:'pickban', gap:1, lowName:'HIGH' },
+    { red:'VANGUARD',    blue:'HIGH',         mode:'pickban', gap:1, lowName:'HIGH' },
+    { red:'ASAP',        blue:'HIGH',         mode:'pickban', gap:1, lowName:'HIGH' },
+    { red:'ARC',         blue:'HIGH',         mode:'pickban', gap:1, lowName:'HIGH' },
+    { red:'FC COCO',     blue:'HIGH',         mode:'pickban', gap:1, lowName:'FC COCO' },
+  ],
+};
+function runPickbanTests(verbose = true) {
+  let pass = 0, fail = 0;
+  const failures = [];
+  for (const [group, cases] of Object.entries(PICKBAN_EXPECTED)) {
+    for (const c of cases) {
+      const redPs = PLAYERS.filter(p => p.team === c.red);
+      const bluePs = PLAYERS.filter(p => p.team === c.blue);
+      const pb = getPickBanMode(redPs, bluePs, c.red, c.blue);
+      const modeOK = pb.mode === c.mode;
+      const gapOK  = c.gap == null || pb.gap === c.gap;
+      const lowOK  = c.lowName == null || pb.lowName === c.lowName;
+      if (modeOK && gapOK && lowOK) {
+        pass++;
+        if (verbose) console.log(`  ✅ [${group}] ${c.red} vs ${c.blue} → ${pb.mode}${pb.gap?` gap=${pb.gap}`:''}`);
+      } else {
+        fail++;
+        const detail = `expected mode=${c.mode}${c.gap?` gap=${c.gap}`:''}${c.lowName?` low=${c.lowName}`:''}, got mode=${pb.mode}${pb.gap?` gap=${pb.gap}`:''}${pb.lowName?` low=${pb.lowName}`:''}`;
+        failures.push(`[${group}] ${c.red} vs ${c.blue}: ${detail}`);
+        console.error(`  ❌ [${group}] ${c.red} vs ${c.blue} — ${detail}`);
+      }
+    }
+  }
+  // 추가 셀프체크: HIGH 8경기 모두 gap=1 (FREE 없음, gap=2 없음)
+  const highMatches = SCHEDULE.filter(x => x.redName === 'HIGH' || x.blueName === 'HIGH');
+  for (const m of highMatches) {
+    const pb = getPickBanMode(
+      PLAYERS.filter(p => p.team === m.redName),
+      PLAYERS.filter(p => p.team === m.blueName),
+      m.redName, m.blueName
+    );
+    if (pb.mode !== 'pickban' || pb.gap !== 1) {
+      fail++;
+      failures.push(`[highInvariant] #${m.id} ${m.redName} vs ${m.blueName}: HIGH는 항상 gap=1이어야 함`);
+      console.error(`  ❌ HIGH 불변 위반: #${m.id} ${m.redName} vs ${m.blueName}`);
+    } else pass++;
+  }
+
+  const summary = `📊 픽앤밴 테스트 결과: ${pass}개 통과 / ${fail}개 실패`;
+  console.log('\n' + summary);
+  toast(summary, fail ? 'err' : 'ok');
+  return { pass, fail, failures };
+}
+// 콘솔에서 호출 가능하도록 전역 등록
+window.runPickbanTests = runPickbanTests;
+
+// ═══════════════════════════════════════════════════════════════
+// ⑪ 시작
+// ═══════════════════════════════════════════════════════════════
+loadCfg();
+// P7: localStorage에 PLAYERS/SCHEDULE override 있으면 적용
+try {
+  const pOverride = localStorage.getItem('hado_players_override');
+  if (pOverride) { const p = JSON.parse(pOverride); if (Array.isArray(p) && p.length) { PLAYERS.length = 0; PLAYERS.push(...p); } }
+  const sOverride = localStorage.getItem('hado_schedule_override');
+  if (sOverride) { const s = JSON.parse(sOverride); if (Array.isArray(s) && s.length) { SCHEDULE.length = 0; SCHEDULE.push(...s); } }
+} catch(e){}
+
+loadState();
+loadGroupDraw();      // ★ 조배정 복원
+loadGimhaeBracket();  // ★ 본선 배정 복원
+// A7: 색맹 모드 적용
+if (CFG.cbMode) document.body.classList.add('cb-mode');
+// A9: 공개 뷰 / A10: OBS 오버레이 적용
+if (VIEW_MODE === 'public')  document.body.classList.add('view-public');
+if (VIEW_MODE === 'overlay') document.body.classList.add('view-overlay');
+
+// ★ 조배정 미완료 시 자동 팝업 (오버레이/공개뷰 제외)
+if (VIEW_MODE === 'normal' && Object.keys(groupDrawMap).length < 8) {
+  setTimeout(() => openGroupDrawModal(), 500);
+}
+setStat(CFG.url ? 'ok' : 'warn', CFG.url ? '시트 연결됨' : '⚙ URL 미설정');
+goTab('checkin');
+selectMatch(A.currentMatch || 1);
+
+// A2: 자동 스냅샷 시작 (5분 주기)
+setInterval(takeSnapshot, (CFG.snapshotInterval || 5) * 60 * 1000);
+takeSnapshot(); // 시작 시 첫 스냅샷
+
+// A3: 충돌 감지
+setupConflictDetection();
+
+// P10: Firebase 동기화 폴링 (10초)
+if (CFG.syncEnabled && CFG.firebaseUrl) {
+  setInterval(pullFromFirebase, 10000);
+  pullFromFirebase();
+}
+
+// A10: OBS 오버레이는 5초마다 자동 새로고침 (스트리밍 중 픽 진행 반영)
+if (VIEW_MODE === 'overlay') {
+  setInterval(() => { loadState(); renderMain(); }, 3000);
+}
+
+// 키보드 단축키
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target?.tagName || '').toLowerCase();
+  if (['input','textarea','select'].includes(tag)) return;
+  const k = e.key.toLowerCase();
+  const mod = e.metaKey || e.ctrlKey;
+  // Cmd+Z = 되돌리기
+  if (mod && !e.shiftKey && k === 'z' && A.tab === 'checkin' && A.currentMatch) {
+    e.preventDefault(); undoLast(A.currentMatch); return;
+  }
+  // Cmd+Shift+T = 룰 테스트
+  if (mod && e.shiftKey && k === 't') {
+    e.preventDefault(); console.log('🧪 픽앤밴 룰 테스트 시작...'); runPickbanTests(); return;
+  }
+  // A4: Cmd+J = 다음 미체크인 경기로 점프
+  if (mod && k === 'j') {
+    e.preventDefault(); jumpToNextUndone(); return;
+  }
+  // A4: Cmd+K = 검색창 포커스
+  if (mod && k === 'k') {
+    e.preventDefault();
+    document.querySelector('.match-search')?.focus();
+    return;
+  }
+  // A6: 화살표로 매치 이동 (체크인 탭에서만)
+  if (A.tab === 'checkin' && (k === 'arrowleft' || k === 'arrowright')) {
+    const idx = SCHEDULE.findIndex(m => m.id === A.currentMatch);
+    const next = k === 'arrowleft' ? Math.max(0, idx-1) : Math.min(SCHEDULE.length-1, idx+1);
+    selectMatch(SCHEDULE[next].id);
+    e.preventDefault();
+    return;
+  }
+  // A6: 1~6 숫자키로 PB 턴 점프 (현재 경기가 픽앤밴 모드인 경우)
+  if (A.tab === 'checkin' && A.currentMatch && /^[1-6]$/.test(k)) {
+    const turn = parseInt(k);
+    document.querySelector(`.pb-turn:nth-child(${turn})`)?.scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+  // A6: ?를 누르면 단축키 도움말
+  if (e.shiftKey && k === '/') {
+    e.preventDefault();
+    toast('단축키: Cmd+Z 되돌리기 · Cmd+J 다음 경기 · Cmd+K 검색 · ←→ 경기이동 · 1~6 PB 턴이동 · Cmd+Shift+T 룰테스트', 'info');
+  }
+});
+
+// 첫 실행시 URL 안내
+if (!CFG.url && VIEW_MODE !== 'overlay') {
+  setTimeout(() => {
+    toast('⚙ 설정에서 Apps Script URL을 입력하세요', 'info');
+  }, 500);
+}
+</script>
+</body>
+</html>
